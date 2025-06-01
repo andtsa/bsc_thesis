@@ -1,0 +1,8 @@
+*.Rout
+*.RData
+*.scratch.*
+**/.DS_Store
+
+*_files/
+Cargo.lock
+target/

@@ -1,0 +1,18 @@
+[package]
+name = "solver"
+version = "0.1.0"
+edition = "2024"
+default-run = "solver-cli"
+
+[[bin]]
+name = "solver-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = "4.5.39"
+clap_derive = "4.5.32"
+petgraph = {version = "0.8.1", features = ["rayon"]}
+kendalls = "1.0.0"
+regex = "1.11.1"
+itertools = "0.14.0"
