@@ -10,7 +10,7 @@ pub trait Case {
     fn algo_args(&self) -> Vec<String>;
 }
 
-pub fn run_solver_on<C: Case>(algo: PathBuf, inp: C) -> Result<String> {
+pub fn run_solver_on<C: Case>(algo: &PathBuf, inp: C) -> Result<String> {
     let mut cmd = Command::new(algo);
 
     for arg in inp.algo_args() {

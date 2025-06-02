@@ -3,6 +3,9 @@ name = "solutions"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "rtc" # ranks-to-cases
 path = "src/rtc.rs"

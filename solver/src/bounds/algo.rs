@@ -245,7 +245,7 @@ pub fn partial_edges(rank: &PartialOrder, g: &mut PartialRankGraph, nl: &BTreeMa
                 'snd_elem: for y in stg {
                     // in the first iteration of 'snd_group, tg==stg, and we want all the edges
                     // between tied elements _except_ for self-loops.
-                    if x == y {
+                    if x != y {
                         g.add_edge(nl[x], nl[y], (*x, *y));
                     }
                 }

@@ -1,5 +1,3 @@
-pub mod ref_solver;
-
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -17,28 +15,15 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use ref_solver::run_solver;
+use solutions::parse_row;
+use solutions::ref_solver::run_solver;
+use solutions::InCsvRow;
+
 #[derive(Parser, Debug)]
 #[command(version)]
 pub struct Cli {
     pub input: String,
     pub output: PathBuf,
-}
-
-#[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
-pub struct InCsvRow {
-    pub a: String,
-    pub b: String,
-}
-
-#[derive(Debug, Clone, serde_derive::Serialize)]
-pub struct OutputRow {
-    pub a: String,
-    pub b: String,
-    pub tmin: f64,
-    pub tmax: f64,
-    pub pmin: String,
-    pub pmax: String,
 }
 
 fn main() -> Result<()> {
@@ -101,9 +86,4 @@ fn main() -> Result<()> {
     );
 
     Ok(())
-}
-
-pub fn parse_row(row: &StringRecord) -> Result<InCsvRow> {
-    let p: InCsvRow = row.deserialize(None)?;
-    Ok(p)
 }

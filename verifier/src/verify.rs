@@ -7,8 +7,7 @@ use crate::FailType;
 use crate::TestCase;
 use crate::TestResult;
 
-pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
-    let (output, input) = case?;
+pub fn parse_algo_sol(output: String) -> Result<Option<AlgoOut>> {
     let mut algo_sol = AlgoOut::default();
     for line in output.lines() {
         if line.is_empty() {
@@ -17,7 +16,7 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
         if line.trim().starts_with("skipped") {
             // brute-force solvers won't run but shouldn't fail on tests with
             // too many permutations
-            return Ok(TestResult::Skipped);
+            return Ok(None);
         }
         let mut parts = line.split(':');
         let label = parts.next().ok_or(anyhow!("No label on line {line:?}"))?;
@@ -59,7 +58,16 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
             _ => bail!("unknown label: {value}"),
         }
     }
+    Ok(Some(algo_sol))
+}
 
+pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
+    let (output, input) = case?;
+    let algo_sol = if let Some(x) = parse_algo_sol(output)? {
+        x
+    } else {
+        return Ok(TestResult::Skipped);
+    };
     // the algorithm can give just a min result, just a max result, or both.
     let min_sol_exists = algo_sol.tmin.is_some() && !algo_sol.minp.is_empty();
     let max_sol_exists = algo_sol.tmax.is_some() && !algo_sol.maxp.is_empty();
