@@ -48,6 +48,7 @@ pub struct OutCsvRow {
     pub sum_of_tie_lengths: usize,
     pub tie_count: usize,
     pub longest_tie: usize,
+    pub permutation_count: u128,
 }
 
 fn main() -> Result<()> {
@@ -69,8 +70,6 @@ fn main() -> Result<()> {
         rows.append(&mut csv_read.records().collect::<Result<Vec<_>, csv::Error>>()?);
     }
 
-    let num_tests = rows.len();
-
     let mut writer = Writer::from_path(&args.output)?;
 
     let mut cases = rows
@@ -79,6 +78,8 @@ fn main() -> Result<()> {
         .collect::<Result<Vec<InCsvRow>>>()?;
     cases.dedup();
     cases.sort_by_key(|row| row.a.len());
+
+    let num_tests = cases.len();
 
     let pb = ProgressBar::new(num_tests as u64).with_style(ProgressStyle::default_bar().template(
         "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
@@ -139,6 +140,7 @@ fn map_to_out(xc: (AlgoOut, &InCsvRow)) -> Result<OutCsvRow> {
             .map(|x| x.len())
             .filter(|x| x > &1)
             .sum(),
+        permutation_count: rank_a.linear_ext_count().saturating_mul(rank_b.linear_ext_count()),
     })
 }
 

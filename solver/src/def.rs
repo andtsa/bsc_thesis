@@ -60,7 +60,7 @@ impl Ranking for TotalOrder {
             .flat_map(|(i, e)| e.as_ref().map(|_| i))
             .collect()
     }
-    fn linear_ext_count(&self) -> usize {
+    fn linear_ext_count(&self) -> u128 {
         1
     }
     fn tau(&self, other: &Self) -> Result<f64> {
@@ -163,9 +163,9 @@ impl Ranking for PartialOrder {
         }
         out
     }
-    fn linear_ext_count(&self) -> usize {
-        let mul = |a: usize, b: usize| a.saturating_mul(b);
-        self.iter().map(|x| (1..=x.len()).fold(1, mul)).fold(1, mul)
+    fn linear_ext_count(&self) -> u128 {
+        let mul = |a: u128, b: u128| a.saturating_mul(b);
+        self.iter().map(|x| (1..=(x.len() as u128)).fold(1, mul)).fold(1, mul)
     }
     fn tau(&self, other: &Self) -> Result<f64> {
         assert!(self.is_defined());
@@ -320,7 +320,7 @@ pub trait Ranking {
     fn all_possible_at(&self, idx: usize) -> Vec<Element>;
     fn insert_at(&mut self, e: Element, p: usize) -> Result<()>;
     fn fixed_indices(&self) -> Vec<usize>;
-    fn linear_ext_count(&self) -> usize;
+    fn linear_ext_count(&self) -> u128;
     fn tau(&self, other: &Self) -> Result<f64>;
 }
 
