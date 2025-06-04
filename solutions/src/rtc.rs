@@ -3,21 +3,17 @@ use std::time::Instant;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use anyhow::bail;
 use clap::Parser;
 use clap_derive::Parser;
-use csv::Reader;
-use csv::StringRecord;
 use csv::Writer;
-use glob::glob;
 use indicatif::ParallelProgressIterator;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use solutions::parse_row;
 use solutions::ref_solver::run_solver;
 use solutions::InCsvRow;
+use verifier::parsing::progress_bar;
+use verifier::parsing::read_glob_csv;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -31,17 +27,7 @@ fn main() -> Result<()> {
 
     let start = Instant::now();
 
-    let mut rows: Vec<StringRecord> = vec![];
-
-    for srcfile in glob(&args.input)? {
-        let mut csv_read = Reader::from_path(&srcfile?)?;
-
-        if csv_read.headers()? != vec!["a", "b"] {
-            bail!("Incompatible CSV data: expected header of `a,b`");
-        }
-
-        rows.append(&mut csv_read.records().collect::<Result<Vec<_>, csv::Error>>()?);
-    }
+    let rows = read_glob_csv(&args.input, vec!["a", "b"])?;
 
     let num_cases = rows.len();
 
@@ -52,10 +38,7 @@ fn main() -> Result<()> {
     cases.dedup();
     cases.sort_by_key(|row| row.a.len());
 
-    let pb = ProgressBar::new(num_cases as u64).with_style(ProgressStyle::default_bar().template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
-    )?);
-
+    let pb = progress_bar(num_cases as u64)?;
     let mut count = 0;
 
     let mut writer = Writer::from_path(&args.output)?;

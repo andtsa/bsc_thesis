@@ -19,18 +19,15 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::Result;
-use anyhow::bail;
 use clap::Parser;
 use clap_derive::Parser;
-use csv::Reader;
-use glob::glob;
 use indicatif::ParallelProgressIterator;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use verifier::parsing::parse_entry;
 use verifier::parsing::pretty_print;
+use verifier::parsing::progress_bar;
+use verifier::parsing::read_glob_csv;
 use verifier::runner::run_solver_on;
 use verifier::verify::verify_result;
 use verifier::TestCase;
@@ -48,19 +45,7 @@ fn main() -> Result<()> {
 
     let start = Instant::now();
 
-    let mut rows = vec![];
-
-    for src in glob(&args.data)? {
-        let mut csv_read = Reader::from_path(&src?)?;
-
-        // check header
-        if csv_read.headers()? != vec!["a", "b", "tmin", "tmax", "pmin", "pmax"] {
-            bail!("Incompatible CSV data: expected header of `a,b,tmin,tmax,pmin,pmax`");
-        }
-
-        // iterate over data
-        rows.append(&mut csv_read.records().collect::<Result<Vec<_>, csv::Error>>()?);
-    }
+    let rows = read_glob_csv(&args.data, vec!["a", "b", "tmin", "tmax", "pmin", "pmax"])?;
 
     let num_tests = rows.len();
 
@@ -76,9 +61,7 @@ fn main() -> Result<()> {
 
     println!("parsed input in {}s", start.elapsed().as_secs_f32());
 
-    let pb = ProgressBar::new(num_tests as u64).with_style(ProgressStyle::default_bar().template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
-    )?);
+    let pb = progress_bar(num_tests as u64)?;
 
     let results = inputs
         .par_iter()

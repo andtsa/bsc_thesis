@@ -4,22 +4,19 @@ use std::time::Instant;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use anyhow::bail;
 use clap::Parser;
 use clap_derive::Parser;
-use csv::Reader;
 use csv::StringRecord;
 use csv::Writer;
-use glob::glob;
 use indicatif::ParallelProgressIterator;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use solver::def::Element;
 use solver::def::Ranking;
 use solver::def::partial_from_string;
+use verifier::parsing::progress_bar;
+use verifier::parsing::read_glob_csv;
 use verifier::AlgoOut;
 use verifier::runner::Case;
 use verifier::runner::run_solver_on;
@@ -56,19 +53,7 @@ fn main() -> Result<()> {
 
     let start = Instant::now();
 
-    let mut rows = vec![];
-
-    for src in glob(&args.data)? {
-        let mut csv_read = Reader::from_path(&src?)?;
-
-        // check header
-        if csv_read.headers()? != vec!["a", "b"] {
-            bail!("Incompatible CSV data: expected header of `a,b`");
-        }
-
-        // iterate over data
-        rows.append(&mut csv_read.records().collect::<Result<Vec<_>, csv::Error>>()?);
-    }
+    let rows = read_glob_csv(&args.data, vec!["a", "b"])?;
 
     let mut writer = Writer::from_path(&args.output)?;
 
@@ -81,9 +66,7 @@ fn main() -> Result<()> {
 
     let num_tests = cases.len();
 
-    let pb = ProgressBar::new(num_tests as u64).with_style(ProgressStyle::default_bar().template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
-    )?);
+    let pb = progress_bar(num_tests as u64)?;
 
     cases.chunks(1000).try_for_each(|group| {
         let outputs = group
