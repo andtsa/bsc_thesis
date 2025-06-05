@@ -6,3 +6,10 @@ group_imports = "StdExternalCrate"
 
 # makes comments adjust to our maximal code width.
 wrap_comments = true
+
+# max characters in a line (comments and code)
+max_width = 92
+
+# place const and type before function impls
+reorder_impl_items = true
+

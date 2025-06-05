@@ -7,13 +7,13 @@ use clap::Parser;
 use clap_derive::Parser;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
+use lib::RankingsCsvRow;
+use lib::parse_row;
+use lib::progress_bar;
+use lib::read_glob_csv;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use solutions::parse_row;
 use solutions::ref_solver::run_solver;
-use solutions::InCsvRow;
-use verifier::parsing::progress_bar;
-use verifier::parsing::read_glob_csv;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let mut cases = rows
         .par_iter()
         .map(parse_row)
-        .collect::<Result<Vec<InCsvRow>>>()?;
+        .collect::<Result<Vec<RankingsCsvRow>>>()?;
     cases.dedup();
     cases.sort_by_key(|row| row.a.len());
 

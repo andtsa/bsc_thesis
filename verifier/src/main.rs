@@ -22,16 +22,16 @@ use anyhow::Result;
 use clap::Parser;
 use clap_derive::Parser;
 use indicatif::ParallelProgressIterator;
+use lib::progress_bar;
+use lib::read_glob_csv;
+use lib::run_solver_on;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use verifier::parsing::parse_entry;
-use verifier::parsing::pretty_print;
-use verifier::parsing::progress_bar;
-use verifier::parsing::read_glob_csv;
-use verifier::runner::run_solver_on;
-use verifier::verify::verify_result;
 use verifier::TestCase;
 use verifier::TestResult;
+use verifier::parsing::parse_entry;
+use verifier::parsing::pretty_print;
+use verifier::verify::verify_result;
 
 #[derive(Parser, Debug)]
 #[command(version)]

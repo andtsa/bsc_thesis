@@ -2,15 +2,14 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use anyhow::bail;
+use lib::AlgoOutputRow;
+use lib::RankingsCsvRow;
 use solver::bounds::bf::tau_bounds_bf;
 use solver::def::TotalOrder;
 use solver::def::partial_from_string;
 use solver::def::total_to_repl_string;
 
-use crate::InCsvRow;
-use crate::OutputRow;
-
-pub fn run_solver(inp: &InCsvRow) -> Result<Option<OutputRow>> {
+pub fn run_solver(inp: &RankingsCsvRow) -> Result<Option<AlgoOutputRow>> {
     let mut inp_map: BTreeMap<String, char> = BTreeMap::new();
     let rank_a = partial_from_string(&inp.a, &mut inp_map)?;
     let rank_b = partial_from_string(&inp.b, &mut inp_map)?;
@@ -38,7 +37,7 @@ pub fn run_solver(inp: &InCsvRow) -> Result<Option<OutputRow>> {
                 };
                 let min_sols = join_sols(&lb.a, &lb.b);
                 let max_sols = join_sols(&ub.a, &ub.b);
-                Ok(Some(OutputRow {
+                Ok(Some(AlgoOutputRow {
                     a: inp.a.clone(),
                     b: inp.b.clone(),
                     tmin: lb.t,

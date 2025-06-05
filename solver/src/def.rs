@@ -23,22 +23,28 @@ impl Ranking for TotalOrder {
         }
         v
     }
+
     fn is_defined(&self) -> bool {
         self.iter().all(|e| e.is_some())
     }
+
     fn set_size(&self) -> usize {
         self.len()
     }
+
     fn set_eq(&self, other: &TotalOrder) -> bool {
         let set = self.iter().flatten().collect::<BTreeSet<&Element>>();
         other.iter().flatten().all(|e| set.contains(e))
     }
+
     fn item_set(&self) -> BTreeSet<Element> {
         self.iter().flatten().cloned().collect()
     }
+
     fn get_at(&self, idx: usize) -> Option<Element> {
         self[idx]
     }
+
     fn all_possible_at(&self, _idx: usize) -> Vec<Element> {
         unimplemented!()
     }
@@ -54,15 +60,18 @@ impl Ranking for TotalOrder {
             )
         }
     }
+
     fn fixed_indices(&self) -> Vec<usize> {
         self.iter()
             .enumerate()
             .flat_map(|(i, e)| e.as_ref().map(|_| i))
             .collect()
     }
+
     fn linear_ext_count(&self) -> u128 {
         1
     }
+
     fn tau(&self, other: &Self) -> Result<f64> {
         assert!(self.is_defined());
         assert!(other.is_defined());
@@ -105,19 +114,24 @@ impl Ranking for PartialOrder {
         }
         v
     }
+
     fn is_defined(&self) -> bool {
         self.iter().all(|e| !e.is_empty())
     }
+
     fn set_size(&self) -> usize {
         self.iter().map(|x| x.len()).sum()
     }
+
     fn set_eq(&self, other: &PartialOrder) -> bool {
         let set = self.iter().flatten().collect::<BTreeSet<&Element>>();
         other.iter().flatten().all(|e| set.contains(e))
     }
+
     fn item_set(&self) -> BTreeSet<Element> {
         self.iter().flatten().cloned().collect()
     }
+
     fn get_at(&self, idx: usize) -> Option<Element> {
         let mut i = 0;
         for tg in self {
@@ -149,9 +163,11 @@ impl Ranking for PartialOrder {
         }
         Vec::new()
     }
+
     fn insert_at(&mut self, _e: Element, _p: usize) -> Result<()> {
         unimplemented!()
     }
+
     fn fixed_indices(&self) -> Vec<usize> {
         let mut idx = 0;
         let mut out = vec![];
@@ -163,10 +179,14 @@ impl Ranking for PartialOrder {
         }
         out
     }
+
     fn linear_ext_count(&self) -> u128 {
         let mul = |a: u128, b: u128| a.saturating_mul(b);
-        self.iter().map(|x| (1..=(x.len() as u128)).fold(1, mul)).fold(1, mul)
+        self.iter()
+            .map(|x| (1..=(x.len() as u128)).fold(1, mul))
+            .fold(1, mul)
     }
+
     fn tau(&self, other: &Self) -> Result<f64> {
         assert!(self.is_defined());
         let m = self
@@ -264,7 +284,10 @@ pub fn partial_to_string(r: &PartialOrder) -> String {
         .join(" ")
 }
 
-pub fn partial_to_repl_string(r: &PartialOrder, rmap: &BTreeMap<Element, String>) -> String {
+pub fn partial_to_repl_string(
+    r: &PartialOrder,
+    rmap: &BTreeMap<Element, String>,
+) -> String {
     r.iter()
         .map(|tg| {
             debug_assert!(!tg.is_empty());

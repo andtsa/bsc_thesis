@@ -1,5 +1,7 @@
+use lib::AlgoOut;
+use lib::Case;
+
 pub mod parsing;
-pub mod runner;
 pub mod verify;
 
 #[derive(Debug, Clone, serde_derive::Deserialize)]
@@ -31,14 +33,6 @@ pub enum FailType {
     MaxP,
 }
 
-#[derive(Debug, Default)]
-pub struct AlgoOut {
-    pub tmin: Option<f64>,
-    pub tmax: Option<f64>,
-    pub minp: Vec<(String, String)>,
-    pub maxp: Vec<(String, String)>,
-}
-
 type FailInfo = (TestCase, AlgoOut);
 
 #[allow(clippy::large_enum_variant)]
@@ -50,3 +44,8 @@ pub enum TestResult {
     Fail(FailInfo, FailType),
 }
 
+impl Case for TestCase {
+    fn algo_args(&self) -> Vec<String> {
+        vec![self.a.to_string(), self.b.to_string()]
+    }
+}

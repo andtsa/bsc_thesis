@@ -9,17 +9,17 @@ use clap_derive::Parser;
 use csv::StringRecord;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
+use lib::AlgoOut;
+use lib::RankingsCsvRow;
+use lib::progress_bar;
+use lib::read_glob_csv;
+use lib::run_solver_on;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use solver::def::Element;
 use solver::def::Ranking;
 use solver::def::partial_from_string;
-use verifier::parsing::progress_bar;
-use verifier::parsing::read_glob_csv;
-use verifier::AlgoOut;
-use verifier::runner::Case;
-use verifier::runner::run_solver_on;
 use verifier::verify::parse_algo_sol;
 
 #[derive(Parser, Debug)]
@@ -28,12 +28,6 @@ pub struct Cli {
     pub solver: PathBuf,
     pub data: String,
     pub output: PathBuf,
-}
-
-#[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
-pub struct InCsvRow {
-    pub a: String,
-    pub b: String,
 }
 
 #[derive(Debug, Clone, serde_derive::Deserialize, serde_derive::Serialize, PartialEq)]
@@ -60,7 +54,7 @@ fn main() -> Result<()> {
     let mut cases = rows
         .par_iter()
         .map(parse_row)
-        .collect::<Result<Vec<InCsvRow>>>()?;
+        .collect::<Result<Vec<RankingsCsvRow>>>()?;
     cases.dedup();
     cases.sort_by_key(|row| row.a.len());
 
@@ -94,7 +88,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn map_to_out(xc: (AlgoOut, &InCsvRow)) -> Result<OutCsvRow> {
+fn map_to_out(xc: (AlgoOut, &RankingsCsvRow)) -> Result<OutCsvRow> {
     let mut inp_map: BTreeMap<String, Element> = BTreeMap::new();
     let rank_a = partial_from_string(&xc.1.a, &mut inp_map)?;
     let rank_b = partial_from_string(&xc.1.b, &mut inp_map)?;
@@ -123,18 +117,13 @@ fn map_to_out(xc: (AlgoOut, &InCsvRow)) -> Result<OutCsvRow> {
             .map(|x| x.len())
             .filter(|x| x > &1)
             .sum(),
-        permutation_count: rank_a.linear_ext_count().saturating_mul(rank_b.linear_ext_count()),
+        permutation_count: rank_a
+            .linear_ext_count()
+            .saturating_mul(rank_b.linear_ext_count()),
     })
 }
 
-impl Case for &&InCsvRow {
-    fn algo_args(&self) -> Vec<String> {
-        vec![self.a.to_string(), self.b.to_string()]
-    }
-}
-
-pub fn parse_row(row: &StringRecord) -> Result<InCsvRow> {
-    let p: InCsvRow = row.deserialize(None)?;
+pub fn parse_row(row: &StringRecord) -> Result<RankingsCsvRow> {
+    let p = row.deserialize(None)?;
     Ok(p)
 }
-

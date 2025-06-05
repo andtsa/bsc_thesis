@@ -1,8 +1,9 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
+use lib::AlgoOut;
+use lib::PRECISION;
 
-use crate::AlgoOut;
 use crate::FailType;
 use crate::TestCase;
 use crate::TestResult;
@@ -88,7 +89,7 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
 
     if algo_sol
         .tmin
-        .is_some_and(|tmin| (tmin - input.tmin).abs() > 1e-5f64)
+        .is_some_and(|tmin| (tmin - input.tmin).abs() > PRECISION)
     {
         let (ta, ts) = (algo_sol.tmin.unwrap(), input.tmin);
         return Ok(TestResult::Fail((input, algo_sol), FailType::Tmin(ta, ts)));
@@ -106,7 +107,7 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
 
     if algo_sol
         .tmax
-        .is_some_and(|tmax| (tmax - input.tmax).abs() > 1e-5f64)
+        .is_some_and(|tmax| (tmax - input.tmax).abs() > PRECISION)
     {
         let (ta, ts) = (algo_sol.tmax.unwrap(), input.tmax);
         return Ok(TestResult::Fail((input, algo_sol), FailType::Tmax(ta, ts)));

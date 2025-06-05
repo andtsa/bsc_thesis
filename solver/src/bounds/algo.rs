@@ -97,8 +97,10 @@ pub fn tau_bound(
 
     // "creating" an acyclic graph is a fallible operation,
     // hence can't be done implicitly.
-    let mut gfa = Acyclic::try_from_graph(gfa).expect("can't convert vertex graph to acyclic (??)");
-    let mut gfb = Acyclic::try_from_graph(gfb).expect("can't convert vertex graph to acyclic (??)");
+    let mut gfa =
+        Acyclic::try_from_graph(gfa).expect("can't convert vertex graph to acyclic (??)");
+    let mut gfb =
+        Acyclic::try_from_graph(gfb).expect("can't convert vertex graph to acyclic (??)");
 
     // sanity check: assert that the node indices still correspond to the node-lists
     verify_internal_node_indices(&gfa, &nla)?;
@@ -184,9 +186,10 @@ pub fn tau_bound(
     let t = final_a.tau(&final_b)?;
     Ok(Bound {
         a: vec![final_a], // we only construct 1 solution!
-        b: vec![final_b], // there are often multiple optimal solutions, but we can't find them all
-        t,                /* in polynomial time since there can be exponentially many optimal
-                           * solutions. */
+        b: vec![final_b], /* there are often multiple optimal solutions, but we can't
+                           * find them all */
+        t, /* in polynomial time since there can be exponentially many optimal
+            * solutions. */
     })
 }
 
@@ -236,15 +239,20 @@ pub fn thm_acy_tnm_sto(
 /// - a node-list, mapping [`Element`]s (ascii characters) to the internal
 ///   indexing of petgraph vertices
 #[allow(unused_labels)]
-pub fn partial_edges(rank: &PartialOrder, g: &mut PartialRankGraph, nl: &BTreeMap<Element, NX>) {
+pub fn partial_edges(
+    rank: &PartialOrder,
+    g: &mut PartialRankGraph,
+    nl: &BTreeMap<Element, NX>,
+) {
     // all edges start from one tie-group,
     'fst_group: for (i, tg) in rank.iter().enumerate() {
         // and go to a second (later or equal) tie-group
         'snd_group: for stg in rank.iter().skip(i) {
             'fst_elem: for x in tg {
                 'snd_elem: for y in stg {
-                    // in the first iteration of 'snd_group, tg==stg, and we want all the edges
-                    // between tied elements _except_ for self-loops.
+                    // in the first iteration of 'snd_group, tg==stg, and we want all the
+                    // edges between tied elements _except_ for
+                    // self-loops.
                     if x != y {
                         g.add_edge(nl[x], nl[y], (*x, *y));
                     }

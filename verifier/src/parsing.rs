@@ -1,43 +1,10 @@
 use anyhow::Result;
 use anyhow::bail;
-use csv::Reader;
 use csv::StringRecord;
-use glob::glob;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 
 use crate::AlgoOut;
 use crate::CsvRow;
 use crate::TestCase;
-
-
-
-pub fn read_glob_csv(g: &str, header: Vec<&str>) -> Result<Vec<StringRecord>> {
-    let mut rows = vec![];
-
-    for src in glob(g)? {
-        let mut csv_read = Reader::from_path(&src?)?;
-
-        // check header
-        if !header.is_empty() && csv_read.headers()? != header {
-            bail!("Incompatible CSV data: expected header of `a,b,tmin,tmax,pmin,pmax`");
-        }
-
-        // iterate over data
-        rows.append(&mut csv_read.records().collect::<Result<Vec<_>, csv::Error>>()?);
-    }
-    
-    rows.dedup();
-    Ok(rows)
-}
-
-pub fn progress_bar(n: u64) -> Result<ProgressBar> {
-    Ok(ProgressBar::new(n).with_style(ProgressStyle::default_bar().template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
-    )?))
-}
-
-
 
 /// get the input & solution from csv row
 pub fn parse_entry(row: &StringRecord) -> Result<TestCase> {
