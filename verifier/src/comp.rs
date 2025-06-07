@@ -5,9 +5,9 @@ use std::time::Instant;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use anyhow::bail;
 use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::bail;
 use clap::Parser;
 use clap_derive::Parser;
 use csv::Writer;
@@ -85,7 +85,7 @@ fn main() -> Result<()> {
         // create a new logfile with the current timestamp as name
         let new_file_name = format!(
             "{}_comp_log.csv",
-            SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / 60
+            (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / 30) & 0xfff
         );
         let p = args.output.join(new_file_name);
         std::fs::File::create_new(&p)

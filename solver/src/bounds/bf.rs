@@ -3,11 +3,11 @@
 use anyhow::Result;
 use anyhow::bail;
 use itertools::Itertools;
-
-use crate::def::*;
+use lib::def::*;
+use lib::tau_h::tau_unweighted;
 
 impl BruteForce for PartialOrder {
-    fn completions(&self) -> Vec<TotalOrder> {
+    fn completions(&self) -> Vec<StrictOrder> {
         // 1. for each tie-group, collect all intra-group permutations
         let group_perms: Vec<Vec<Vec<Element>>> = self
             .iter()
@@ -21,7 +21,7 @@ impl BruteForce for PartialOrder {
             .map(|combo: Vec<Vec<Element>>| {
                 // `combo` e.g. [ vec!['B','C'], vec!['A'], vec!['D','E'] ]
                 let flat: Vec<Element> = combo.into_iter().flatten().collect();
-                let mut to = TotalOrder::new_empty(flat.len());
+                let mut to = StrictOrder::new_empty(flat.len());
                 for (i, e) in flat.into_iter().enumerate() {
                     to.insert_at(e, i).unwrap();
                 }
@@ -31,7 +31,15 @@ impl BruteForce for PartialOrder {
     }
 }
 
-pub fn tau_bounds_bf(a: &PartialOrder, b: &PartialOrder) -> Result<TauBounds> {
+pub fn tau_bounds_bf_unweighted(a: &PartialOrder, b: &PartialOrder) -> Result<TauBounds> {
+    tau_bounds_bf(a, b, tau_unweighted)
+}
+
+pub fn tau_bounds_bf<F: Fn(&StrictOrder, &StrictOrder) -> Result<f64>>(
+    a: &PartialOrder,
+    b: &PartialOrder,
+    tau: F,
+) -> Result<TauBounds> {
     let na = a.linear_ext_count();
     let nb = b.linear_ext_count();
     let le_count = na.saturating_mul(nb);
@@ -52,7 +60,7 @@ pub fn tau_bounds_bf(a: &PartialOrder, b: &PartialOrder) -> Result<TauBounds> {
             if min_pairs.len() + max_pairs.len() >= 8000 {
                 bail!("too many solutions")
             }
-            let t = x.tau(y)?;
+            let t = tau(x, y)?;
             if t < lb {
                 lb = t;
                 min_pairs.clear();
@@ -85,5 +93,5 @@ pub fn tau_bounds_bf(a: &PartialOrder, b: &PartialOrder) -> Result<TauBounds> {
 }
 
 pub trait BruteForce {
-    fn completions(&self) -> Vec<TotalOrder>;
+    fn completions(&self) -> Vec<StrictOrder>;
 }
