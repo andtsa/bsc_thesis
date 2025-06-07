@@ -11,15 +11,15 @@ use csv::Writer;
 use indicatif::ParallelProgressIterator;
 use lib::AlgoOut;
 use lib::RankingsCsvRow;
+use lib::def::Element;
+use lib::def::Ranking;
+use lib::def::partial_from_string;
 use lib::progress_bar;
 use lib::read_glob_csv;
 use lib::run_solver_on;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use solver::def::Element;
-use solver::def::Ranking;
-use solver::def::partial_from_string;
 use verifier::verify::parse_algo_sol;
 
 #[derive(Parser, Debug)]

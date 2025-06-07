@@ -5,21 +5,26 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use anyhow::ensure;
 use itertools::Itertools;
+use lib::def::*;
+use lib::tau_h::RankIndexMap;
+use lib::tau_h::TauVariants;
+use lib::tau_h::index_map;
+use lib::tau_h::tau_h;
 use petgraph::acyclic::Acyclic;
 use petgraph::data::DataMap;
 use petgraph::graph::DiGraph;
 use petgraph::graph::NodeIndex;
 
 use crate::bounds::trivial_alloc;
-use crate::def::*;
 
 pub type PartialRankGraph = DiGraph<Element, (Element, Element)>;
 type NX = NodeIndex;
 
-pub fn tau_bound(
+pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     rank_a: &PartialOrder,
     rank_b: &PartialOrder,
     is_minimising: bool,
+    w: F,
 ) -> Result<Bound> {
     // checks
     let rank_a_size = rank_a.set_size();
@@ -39,8 +44,8 @@ pub fn tau_bound(
         length
     );
 
-    let mut final_a = TotalOrder::new_empty(length);
-    let mut final_b = TotalOrder::new_empty(length);
+    let mut final_a = StrictOrder::new_empty(length);
+    let mut final_b = StrictOrder::new_empty(length);
     ensure!(final_a.set_size() == rank_b.set_size());
 
     // check if ties exist to exit early
@@ -106,8 +111,14 @@ pub fn tau_bound(
     verify_internal_node_indices(&gfa, &nla)?;
     verify_internal_node_indices(&gfb, &nlb)?;
 
+    let rank_index_map = index_map(rank_a, rank_b);
+    let sort_cmp = |a, b| edge_cmp(&a, &b, &w, &rank_index_map);
     // fill in gfa based on the edges in gb
-    let other_edges = gb.raw_edges().iter().sorted_by(edge_cmp).collect_vec();
+    let other_edges = gb
+        .raw_edges()
+        .iter()
+        .sorted_by(|a, b| sort_cmp(*a, *b))
+        .collect_vec();
     for edge in other_edges {
         // to _minimise_ concordance, we want to try to add the inverse yx of every
         // edge xy that's in the other graph (since only one of xy,yx will be added,
@@ -146,15 +157,23 @@ pub fn tau_bound(
     // - in the minimisation case we want to pick the reverse order,
     // - which of the two xy or yx we pick depends only on which one we encounter
     //   first.
-    let mut other_edges = ga.raw_edges().iter().sorted_by(edge_cmp).collect_vec();
+    let sort_cmp = |a, b| {
+        if is_minimising {
+            edge_cmp(&b, &a, &w, &rank_index_map)
+        } else {
+            edge_cmp(&a, &b, &w, &rank_index_map)
+        }
+    };
+    let other_edges = ga
+        .raw_edges()
+        .iter()
+        .sorted_by(|a, b| sort_cmp(*a, *b))
+        .collect_vec();
     // depending on the underlying implementation of the graph (specifically
     // `.raw_edges()` edge iteratior) sorting may not be necessary–and for
     // petgraph this is the case. the only reason I include sorting here is to
     // illustrate that this algorithm's optimality depends on the order in which
     // we see edges when adding them to gfa,gfb.
-    if is_minimising {
-        other_edges.reverse();
-    }
     for edge in other_edges {
         let (scid, dsid) = if is_minimising {
             (edge.weight.1, edge.weight.0)
@@ -183,7 +202,8 @@ pub fn tau_bound(
     let final_a = thm_acy_tnm_sto(rank_a, &gfa, &nlfa, length);
     let final_b = thm_acy_tnm_sto(rank_b, &gfb, &nlfb, length);
 
-    let t = final_a.tau(&final_b)?;
+    // let t = final_a.tau(&final_b)?;
+    let t = tau_h(&final_a, &final_b, w, TauVariants::A)?;
     Ok(Bound {
         a: vec![final_a], // we only construct 1 solution!
         b: vec![final_b], /* there are often multiple optimal solutions, but we can't
@@ -199,8 +219,8 @@ pub fn thm_acy_tnm_sto(
     tnm: &Acyclic<PartialRankGraph>,
     nl: &BTreeMap<Element, NX>,
     must_size: usize,
-) -> TotalOrder {
-    let mut o = TotalOrder::new_empty(must_size);
+) -> StrictOrder {
+    let mut o = StrictOrder::new_empty(must_size);
     let mut idx = 0;
     for tg in rank {
         if tg.len() == 1 {
@@ -275,12 +295,19 @@ pub fn verify_internal_node_indices(
 
 /// the order to use for picking edges from `other` graph.
 /// it doesn't matter as long as it's transitive & total.
-pub fn edge_cmp(
-    a: &&petgraph::graph::Edge<(Element, Element)>,
-    b: &&petgraph::graph::Edge<(Element, Element)>,
+pub fn edge_cmp<W: Fn((usize, usize), (usize, usize)) -> f64>(
+    e1: &&petgraph::graph::Edge<(Element, Element)>,
+    e2: &&petgraph::graph::Edge<(Element, Element)>,
+    w: W,
+    m: &RankIndexMap,
 ) -> Ordering {
-    match a.weight.0.cmp(&b.weight.0) {
-        Ordering::Equal => a.weight.1.cmp(&b.weight.1),
-        x => x,
+    let (a1, b1) = e1.weight;
+    let (a2, b2) = e2.weight;
+    match w(m[&a1], m[&b1]).partial_cmp(&w(m[&a2], m[&b2])) {
+        Some(Ordering::Equal) | None => match a1.cmp(&a2) {
+            Ordering::Equal => b1.cmp(&b2),
+            x => x,
+        },
+        Some(x) => x,
     }
 }

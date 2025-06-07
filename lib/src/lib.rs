@@ -6,6 +6,7 @@ use glob::glob;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 
+pub mod def;
 pub mod tau_h;
 
 pub const PRECISION: f64 = 1e-5f64;

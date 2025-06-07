@@ -1,4 +1,4 @@
 [workspace]
 resolver = "3"
-members = ["verifier", "solver", "solutions", "coef", "lib"]
+members = ["verifier", "solver", "solutions", "eval", "lib"]
 
