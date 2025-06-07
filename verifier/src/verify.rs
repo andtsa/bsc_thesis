@@ -113,5 +113,9 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
         return Ok(TestResult::Fail((input, algo_sol), FailType::Tmax(ta, ts)));
     }
 
-    Ok(TestResult::Pass)
+    if min_sol_exists && max_sol_exists {
+        Ok(TestResult::Complete)
+    } else {
+        Ok(TestResult::Pass)
+    }
 }

@@ -72,7 +72,12 @@ fn main() -> Result<()> {
 
     let successes = results
         .iter()
-        .filter(|x| matches!(x, TestResult::Pass))
+        .filter(|x| matches!(x, TestResult::Pass | TestResult::Complete))
+        .count();
+
+    let completes = results
+        .iter()
+        .filter(|x| matches!(x, TestResult::Complete))
         .count();
 
     let skips = results
@@ -83,7 +88,7 @@ fn main() -> Result<()> {
     let failures = results
         .iter()
         .filter_map(|x| match x {
-            TestResult::Pass | TestResult::Skipped => None,
+            TestResult::Pass | TestResult::Skipped | TestResult::Complete => None,
             TestResult::Fail(i, t) => Some((i, t)),
             TestResult::Empty(f) => {
                 println!(
@@ -95,10 +100,9 @@ fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
 
-    println!(
-        "{successes}/{num_tests} test cases passed. total time: {}s",
-        start.elapsed().as_secs_f32()
-    );
+    println!("{successes}/{num_tests} test cases passed,");
+    println!("{completes}/{successes} solutions were complete.");
+    println!("total time: {}s", start.elapsed().as_secs_f32());
 
     if skips > 0 {
         println!("{skips} run(s) skipped");

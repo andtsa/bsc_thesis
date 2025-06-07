@@ -2,9 +2,12 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::fmt::Display;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
+use anyhow::ensure;
 use regex::Regex;
 
 pub type Element = char;
@@ -13,10 +16,10 @@ pub type TieGroup = Vec<Element>;
 
 pub type PartialOrder = Vec<TieGroup>;
 
-pub type TotalOrder = Vec<Option<Element>>;
+pub type StrictOrder = Vec<Option<Element>>;
 
-impl Ranking for TotalOrder {
-    fn new_empty(size: usize) -> TotalOrder {
+impl Ranking for StrictOrder {
+    fn new_empty(size: usize) -> StrictOrder {
         let mut v = Vec::with_capacity(size);
         for _ in 0..size {
             v.push(None);
@@ -28,11 +31,36 @@ impl Ranking for TotalOrder {
         self.iter().all(|e| e.is_some())
     }
 
+    fn ensure_defined(&self) -> Result<Vec<Vec<Element>>> {
+        self.iter()
+            .map(|x| {
+                x.map(|xx| vec![xx]).ok_or(anyhow!(
+                    "ranking is not fully defined: {}",
+                    total_to_string(self)
+                ))
+            })
+            .collect::<Result<Vec<Vec<Element>>>>()
+    }
+
+    fn ensure_conjoint(&self, other: &Self) -> Result<(usize, BTreeSet<Element>)> {
+        let mut item_set = BTreeSet::new();
+        for a in self.iter().flatten() {
+            item_set.insert(*a);
+        }
+        for b in other {
+            ensure!(
+                b.is_some_and(|bb| item_set.contains(&bb)),
+                "conjointness failed!"
+            );
+        }
+        Ok((item_set.len(), item_set))
+    }
+
     fn set_size(&self) -> usize {
         self.len()
     }
 
-    fn set_eq(&self, other: &TotalOrder) -> bool {
+    fn set_eq(&self, other: &StrictOrder) -> bool {
         let set = self.iter().flatten().collect::<BTreeSet<&Element>>();
         other.iter().flatten().all(|e| set.contains(e))
     }
@@ -119,8 +147,38 @@ impl Ranking for PartialOrder {
         self.iter().all(|e| !e.is_empty())
     }
 
+    fn ensure_defined(&self) -> Result<Vec<Vec<Element>>> {
+        self.iter()
+            .map(|x| {
+                if x.is_empty() {
+                    Err(anyhow!(
+                        "ranking is not fully defined: {}",
+                        partial_to_string(self)
+                    ))
+                } else {
+                    Ok(x.clone())
+                }
+            })
+            .collect::<Result<Vec<Vec<Element>>>>()
+    }
+
     fn set_size(&self) -> usize {
         self.iter().map(|x| x.len()).sum()
+    }
+
+    fn ensure_conjoint(&self, other: &Self) -> Result<(usize, BTreeSet<Element>)> {
+        let mut item_set = BTreeSet::new();
+        for tg in self {
+            for a in tg {
+                item_set.insert(*a);
+            }
+        }
+        for tg in other {
+            for b in tg {
+                ensure!(item_set.contains(b), "conjointness failed!");
+            }
+        }
+        Ok((item_set.len(), item_set))
     }
 
     fn set_eq(&self, other: &PartialOrder) -> bool {
@@ -308,14 +366,14 @@ pub fn partial_to_repl_string(
         .join(" ")
 }
 
-pub fn total_to_string(o: &TotalOrder) -> String {
+pub fn total_to_string(o: &StrictOrder) -> String {
     o.iter()
         .map(|x| x.map_or("<empty>".to_string(), |e| e.to_string()))
         .collect::<Vec<String>>()
         .join(" ")
 }
 
-pub fn total_to_repl_string(o: &TotalOrder, rmap: &BTreeMap<Element, String>) -> String {
+pub fn total_to_repl_string(o: &StrictOrder, rmap: &BTreeMap<Element, String>) -> String {
     o.iter()
         .map(|x| {
             x.map_or("<empty>".to_string(), |e| {
@@ -336,6 +394,8 @@ fn join_chars(c: &[char], sep: &str) -> String {
 pub trait Ranking {
     fn new_empty(size: usize) -> Self;
     fn is_defined(&self) -> bool;
+    fn ensure_defined(&self) -> Result<Vec<Vec<Element>>>;
+    fn ensure_conjoint(&self, other: &Self) -> Result<(usize, BTreeSet<Element>)>;
     fn set_size(&self) -> usize;
     fn set_eq(&self, other: &Self) -> bool;
     fn item_set(&self) -> BTreeSet<Element>;
@@ -349,11 +409,63 @@ pub trait Ranking {
 
 pub struct Bound {
     pub t: f64,
-    pub a: Vec<TotalOrder>,
-    pub b: Vec<TotalOrder>,
+    pub a: Vec<StrictOrder>,
+    pub b: Vec<StrictOrder>,
 }
 
 pub struct TauBounds {
     pub lb: Option<Bound>,
     pub ub: Option<Bound>,
+}
+
+impl Display for TauBounds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f)?;
+        if let Some(lb) = &self.lb {
+            writeln!(f, "tmin:{:?}", lb.t)?;
+            // just print the first solution
+            writeln!(f, "mina:{}", total_to_string(&lb.a[0]))?;
+            writeln!(f, "minb:{}", total_to_string(&lb.b[0]))?;
+        }
+        if let Some(ub) = &self.ub {
+            writeln!(f, "tmax:{:?}", ub.t)?;
+            writeln!(f, "maxa:{}", total_to_string(&ub.a[0]))?;
+            writeln!(f, "maxb:{}", total_to_string(&ub.b[0]))?;
+        }
+        std::fmt::Result::Ok(())
+    }
+}
+
+impl TauBounds {
+    /// separate from display because we need the input map argument in order to
+    /// show the same elements we were given.
+    pub fn print_with_repl(&self, inp_map: &BTreeMap<String, char>) -> Result<String> {
+        let rmap = inp_map
+            .iter()
+            .map(|(x, y)| (*y, x.clone()))
+            .collect::<BTreeMap<char, String>>();
+
+        let mut out = String::from("\n");
+        if let Some(lb) = &self.lb {
+            out.push_str(&format!("tmin:{:?}\n", lb.t));
+            for (mina, minb) in lb.a.iter().zip(lb.b.iter()) {
+                out.push_str(&format!(
+                    "minp:{}/{}\n",
+                    total_to_repl_string(mina, &rmap),
+                    total_to_repl_string(minb, &rmap)
+                ));
+            }
+        }
+        if let Some(ub) = &self.ub {
+            out.push_str(&format!("tmax:{:?}\n", ub.t));
+            for (maxa, maxb) in ub.a.iter().zip(ub.b.iter()) {
+                out.push_str(&format!(
+                    "maxp:{}/{}\n",
+                    total_to_repl_string(maxa, &rmap),
+                    total_to_repl_string(maxb, &rmap)
+                ));
+            }
+        }
+        Ok(out)
+    }
 }
