@@ -8,6 +8,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use anyhow::ensure;
+use itertools::Itertools;
 use regex::Regex;
 
 pub type Element = char;
@@ -25,6 +26,10 @@ impl Ranking for StrictOrder {
             v.push(None);
         }
         v
+    }
+
+    fn rank_eq(&self, other: &Self) -> bool {
+        self.eq(other)
     }
 
     fn is_defined(&self) -> bool {
@@ -134,6 +139,10 @@ impl Ranking for StrictOrder {
     }
 }
 
+fn sort_eq(a: &[Element], b: &[Element]) -> bool {
+    a.iter().sorted().zip(b.iter().sorted()).all(|(x,y)| x.eq(y))
+}
+
 impl Ranking for PartialOrder {
     fn new_empty(size: usize) -> PartialOrder {
         let mut v = Vec::with_capacity(size);
@@ -141,6 +150,14 @@ impl Ranking for PartialOrder {
             v.push(Vec::new());
         }
         v
+    }
+
+    fn rank_eq(&self, other: &Self) -> bool {
+        self.iter()
+            .zip(other)
+            .all(|(tga, tgb)| 
+                sort_eq(tga, tgb)
+            )
     }
 
     fn is_defined(&self) -> bool {
@@ -393,6 +410,7 @@ fn join_chars(c: &[char], sep: &str) -> String {
 
 pub trait Ranking {
     fn new_empty(size: usize) -> Self;
+    fn rank_eq(&self, other: &Self) -> bool;
     fn is_defined(&self) -> bool;
     fn ensure_defined(&self) -> Result<Vec<Vec<Element>>>;
     fn ensure_conjoint(&self, other: &Self) -> Result<(usize, BTreeSet<Element>)>;

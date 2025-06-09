@@ -18,6 +18,24 @@ pub fn unweighted(_: (usize, usize), _: (usize, usize)) -> f64 {
     1.0
 }
 
+/// an additive hyperbolic weighting function, as described in Vigna 2014.
+/// it uses the left ranking X as the reference.
+pub fn hyperbolic_addtv_weight(x: (usize, usize), _y: (usize, usize)) -> f64 {
+    (1.0 / (x.0 as f64 + 1.0)) + (1.0/(x.1 as f64 + 1.0))
+}
+
+/// a multiplicative hyperbolic weighting function, as described in Vigna 2014.
+/// it uses the left ranking X as the reference.
+pub fn hyperbolic_mult_weight(x: (usize, usize), _y: (usize, usize)) -> f64 {
+    (1.0 / (x.0 as f64 + 1.0)) * (1.0/(x.1 as f64 + 1.0))
+}
+
+/// a weighting function to achieve tau_AP from Yilmaz 2008.
+/// assymetric, uses X as reference.
+pub fn ap_weight(x: (usize, usize), _y: (usize, usize)) -> f64 {
+    1.0 / (x.0.max(x.1) as f64)
+}
+
 pub fn tau_unweighted(a: &StrictOrder, b: &StrictOrder) -> Result<f64> {
     tau_h(a, b, unweighted, TauVariants::A)
 }
