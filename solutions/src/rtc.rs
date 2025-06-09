@@ -11,6 +11,7 @@ use lib::RankingsCsvRow;
 use lib::parse_row;
 use lib::progress_bar;
 use lib::read_glob_csv;
+use lib::CHUNK_SIZE;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use solutions::ref_solver::run_solver;
@@ -43,7 +44,7 @@ fn main() -> Result<()> {
 
     let mut writer = Writer::from_path(&args.output)?;
 
-    cases.chunks(1000).try_for_each(|group| {
+    cases.chunks(CHUNK_SIZE).try_for_each(|group| {
         let outputs = group
             .par_iter()
             .map(run_solver)

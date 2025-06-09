@@ -13,9 +13,9 @@ use csv::Writer;
 use indicatif::ParallelProgressIterator;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use lib::def::PartialOrder;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use solver::def::PartialOrder;
 
 const ABC: &str = "abcdefghijklmnopqrstuvwxyz";
 

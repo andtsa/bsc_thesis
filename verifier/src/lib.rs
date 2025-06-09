@@ -38,6 +38,7 @@ type FailInfo = (TestCase, AlgoOut);
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum TestResult {
+    Complete,
     Pass,
     Skipped,
     Empty(TestCase),
