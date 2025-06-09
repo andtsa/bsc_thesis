@@ -13,6 +13,7 @@ use lib::tau_h::tau_h;
 use petgraph::acyclic::Acyclic;
 use petgraph::data::DataMap;
 use petgraph::graph::DiGraph;
+use petgraph::graph::Edge;
 use petgraph::graph::NodeIndex;
 
 use crate::bounds::trivial_alloc;
@@ -112,7 +113,7 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     verify_internal_node_indices(&gfb, &nlb)?;
 
     let rank_index_map = index_map(rank_a, rank_b);
-    let sort_cmp = |a, b| edge_cmp(&a, &b, &w, &rank_index_map);
+    let sort_cmp = |a, b| edge_cmp(&a, &b, &w, &rank_index_map, false);
     // fill in gfa based on the edges in gb
     let other_edges = gb
         .raw_edges()
@@ -157,13 +158,7 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     // - in the minimisation case we want to pick the reverse order,
     // - which of the two xy or yx we pick depends only on which one we encounter
     //   first.
-    let sort_cmp = |a, b| {
-        if is_minimising {
-            edge_cmp(&b, &a, &w, &rank_index_map)
-        } else {
-            edge_cmp(&a, &b, &w, &rank_index_map)
-        }
-    };
+    let sort_cmp = |a, b| edge_cmp(&a, &b, &w, &rank_index_map, is_minimising);
     let other_edges = ga
         .raw_edges()
         .iter()
@@ -296,18 +291,29 @@ pub fn verify_internal_node_indices(
 /// the order to use for picking edges from `other` graph.
 /// it doesn't matter as long as it's transitive & total.
 pub fn edge_cmp<W: Fn((usize, usize), (usize, usize)) -> f64>(
-    e1: &&petgraph::graph::Edge<(Element, Element)>,
-    e2: &&petgraph::graph::Edge<(Element, Element)>,
+    e1: &&Edge<(Element, Element)>,
+    e2: &&Edge<(Element, Element)>,
     w: W,
     m: &RankIndexMap,
+    is_minimising: bool,
 ) -> Ordering {
     let (a1, b1) = e1.weight;
     let (a2, b2) = e2.weight;
-    match w(m[&a1], m[&b1]).partial_cmp(&w(m[&a2], m[&b2])) {
-        Some(Ordering::Equal) | None => match a1.cmp(&a2) {
-            Ordering::Equal => b1.cmp(&b2),
-            x => x,
-        },
+    let cmp = w(m[&a1], m[&b1]).partial_cmp(&w(m[&a2], m[&b2]));
+    match cmp {
+        Some(Ordering::Equal) | None => {
+            if is_minimising {
+                match a2.cmp(&a1) {
+                    Ordering::Equal => b2.cmp(&b1),
+                    x => x,
+                }
+            } else {
+                match a1.cmp(&a2) {
+                    Ordering::Equal => b1.cmp(&b2),
+                    x => x,
+                }
+            }
+        }
         Some(x) => x,
     }
 }

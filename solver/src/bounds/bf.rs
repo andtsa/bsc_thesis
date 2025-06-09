@@ -43,8 +43,8 @@ pub fn tau_bounds_bf<F: Fn(&StrictOrder, &StrictOrder) -> Result<f64>>(
     let na = a.linear_ext_count();
     let nb = b.linear_ext_count();
     let le_count = na.saturating_mul(nb);
-    if le_count > 25_000_000 {
-        bail!("too many linear extensions ({le_count})");
+    if le_count > 5_000_000 {
+        bail!("skipped: too many linear extensions ({le_count})");
     }
 
     let le_a = a.completions();
@@ -58,7 +58,7 @@ pub fn tau_bounds_bf<F: Fn(&StrictOrder, &StrictOrder) -> Result<f64>>(
     for x in &le_a {
         for y in &le_b {
             if min_pairs.len() + max_pairs.len() >= 8000 {
-                bail!("too many solutions")
+                bail!("skipped: too many solutions")
             }
             let t = tau(x, y)?;
             if t < lb {

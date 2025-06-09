@@ -1,5 +1,7 @@
 //! compare the outputs of two algorithms
 
+use std::collections::BTreeMap;
+use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
 use std::time::SystemTime;
@@ -12,7 +14,10 @@ use clap::Parser;
 use clap_derive::Parser;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
+use lib::def::partial_from_string;
+use lib::def::Ranking;
 use lib::AlgoOut;
+use lib::CHUNK_SIZE;
 use lib::RankingsCsvRow;
 use lib::display_cases;
 use lib::parse_row;
@@ -37,7 +42,8 @@ enum CompResult {
     LeftMissing(AlgoOut, RankingsCsvRow),
     RightMissing(AlgoOut, RankingsCsvRow),
     BothMissing(RankingsCsvRow),
-    NotEqual(AlgoOut, AlgoOut, RankingsCsvRow),
+    TauNotEqual(AlgoOut, AlgoOut, RankingsCsvRow),
+    SolNotEqual(AlgoOut, AlgoOut, RankingsCsvRow),
     Equal,
 }
 
@@ -46,8 +52,10 @@ struct CompOutRow {
     pub err_type: String,
     pub a: String,
     pub b: String,
+    pub dtmin: f64,
     pub ltmin: f64,
     pub rtmin: f64,
+    pub dtmax: f64,
     pub ltmax: f64,
     pub rtmax: f64,
     pub lpmin: String,
@@ -70,14 +78,23 @@ fn main() -> Result<()> {
 
     let rows = read_glob_csv(&args.data, vec!["a", "b"])?;
 
-    let num_tests = rows.len();
 
-    let inputs = rows
+    let mut inputs = rows
         .par_iter()
         .map(parse_row)
         .collect::<Result<Vec<RankingsCsvRow>>>()?;
+    inputs.dedup_by(|r1, r2| {
+        let mut map = BTreeMap::new();
+        let p1 = partial_from_string(&r1.a, &mut map).unwrap();
+        let p2 = partial_from_string(&r1.b, &mut map).unwrap();
+        let mut map = BTreeMap::new();
+        let p3 = partial_from_string(&r2.a, &mut map).unwrap();
+        let p4 = partial_from_string(&r2.b, &mut map).unwrap();
+        p1.rank_eq(&p3) && p2.rank_eq(&p4)
+    });
 
-    println!("parsed input in {}s", start.elapsed().as_secs_f32());
+    let num_tests = inputs.len();
+    println!("parsed {} into {num_tests} lines of input in {}s", rows.len(), start.elapsed().as_secs_f32());
 
     let pb = progress_bar(num_tests as u64)?;
 
@@ -103,19 +120,20 @@ fn main() -> Result<()> {
     let mut l_missing = 0;
     let mut r_missing = 0;
     let mut both_missing = 0;
-    let mut not_eq = 0;
+    let mut tau_not_eq = 0;
+    let mut sol_not_eq = 0;
 
     println!("running {num_tests} tests...");
 
-    inputs.chunks(1000).try_for_each(|group| {
+    inputs.chunks(CHUNK_SIZE).try_for_each(|group| {
         let comp_results = group
             .par_iter()
-            .flat_map(|i| {
+            .map(|i| {
                 run_solver_on(&args.algo_one, &i)
                     .map(|a| run_solver_on(&args.algo_two, &i).map(|b| (a, b, i)))
             })
             .progress_with(pb.clone())
-            .collect::<Result<Vec<_>>>()?
+            .collect::<Result<Result<Vec<_>>>>()??
             .par_iter()
             .map(|(a, b, i)| {
                 parse_algo_sol(a.to_string()).map(|aa| {
@@ -129,7 +147,7 @@ fn main() -> Result<()> {
 
         comp_results
             .into_iter()
-            .map(|cr| match cr {
+            .flat_map(|cr| match cr {
                 CompResult::Equal => {
                     equals += 1;
                     None
@@ -140,10 +158,12 @@ fn main() -> Result<()> {
                         err_type: "left missing".into(),
                         a: c.a,
                         b: c.b,
+                        dtmin: 0.0,
                         ltmin: 0.0,
-                        rtmin: r.tmin.unwrap(),
+                        rtmin: r.tmin.unwrap_or(f64::NAN),
+                        dtmax: 0.0,
                         ltmax: 0.0,
-                        rtmax: r.tmax.unwrap(),
+                        rtmax: r.tmax.unwrap_or(f64::NAN),
                         lpmin: "none".into(),
                         rpmin: display_cases(&r.minp),
                         lpmax: "none".into(),
@@ -156,26 +176,48 @@ fn main() -> Result<()> {
                         err_type: "right missing".into(),
                         a: c.a,
                         b: c.b,
+                        dtmin: 0.0,
                         rtmin: 0.0,
-                        ltmin: l.tmin.unwrap(),
+                        ltmin: l.tmin.unwrap_or(f64::NAN),
+                        dtmax: 0.0,
                         rtmax: 0.0,
-                        ltmax: l.tmax.unwrap(),
+                        ltmax: l.tmax.unwrap_or(f64::NAN),
                         rpmin: "none".into(),
                         lpmin: display_cases(&l.minp),
                         rpmax: "none".into(),
                         lpmax: display_cases(&l.maxp),
                     })
                 }
-                CompResult::NotEqual(l, r, c) => {
-                    not_eq += 1;
+                CompResult::TauNotEqual(l, r, c) => {
+                    tau_not_eq += 1;
                     Some(CompOutRow {
                         err_type: "bounds not equal".into(),
                         a: c.a,
                         b: c.b,
-                        ltmin: l.tmin.unwrap(),
-                        rtmin: r.tmin.unwrap(),
-                        ltmax: l.tmax.unwrap(),
-                        rtmax: r.tmax.unwrap(),
+                        dtmin: l.tmin.unwrap_or(f64::NAN).sub(r.tmin.unwrap_or(f64::NAN)).abs(),
+                        ltmin: l.tmin.unwrap_or(f64::NAN),
+                        rtmin: r.tmin.unwrap_or(f64::NAN),
+                        dtmax: l.tmax.unwrap_or(f64::NAN).sub(r.tmax.unwrap_or(f64::NAN)).abs(),
+                        ltmax: l.tmax.unwrap_or(f64::NAN),
+                        rtmax: r.tmax.unwrap_or(f64::NAN),
+                        lpmin: display_cases(&l.minp),
+                        rpmin: display_cases(&r.minp),
+                        lpmax: display_cases(&l.maxp),
+                        rpmax: display_cases(&r.maxp),
+                    })
+                }
+                CompResult::SolNotEqual(l, r, c) => {
+                    sol_not_eq += 1;
+                    Some(CompOutRow {
+                        err_type: "rankings not equal".into(),
+                        a: c.a,
+                        b: c.b,
+                        dtmin: l.tmin.unwrap_or(f64::NAN).sub(r.tmin.unwrap_or(f64::NAN)).abs(),
+                        ltmin: l.tmin.unwrap_or(f64::NAN),
+                        rtmin: r.tmin.unwrap_or(f64::NAN),
+                        dtmax: l.tmax.unwrap_or(f64::NAN).sub(r.tmax.unwrap_or(f64::NAN)).abs(),
+                        ltmax: l.tmax.unwrap_or(f64::NAN),
+                        rtmax: r.tmax.unwrap_or(f64::NAN),
                         lpmin: display_cases(&l.minp),
                         rpmin: display_cases(&r.minp),
                         lpmax: display_cases(&l.maxp),
@@ -188,6 +230,8 @@ fn main() -> Result<()> {
                         err_type: "missing both".into(),
                         a: c.a,
                         b: c.b,
+                        dtmax: 0.0,
+                        dtmin: 0.0, 
                         ltmin: 0.0,
                         rtmin: 0.0,
                         ltmax: 0.0,
@@ -201,12 +245,29 @@ fn main() -> Result<()> {
             })
             .try_for_each(|o| writer.serialize(o))
             .map_err(|e| anyhow!("writer err: {e:?}"))
-    })?;
+    }).unwrap();
 
-    println!(
-        "{num_tests} done in {}s\nsuccess: {equals}\nfailures: {not_eq}\nleft empty: {l_missing}\nright empty: {r_missing}",
-        start.elapsed().as_secs_f32()
-    );
+    let not_eqs = tau_not_eq + sol_not_eq;
+
+    println!("{num_tests} done in {}s", start.elapsed().as_secs_f32());
+    if equals > 0 {
+        println!("success: {equals}");
+    }
+    if not_eqs > 0 {
+        println!("failures: {not_eqs}");
+        println!("| sol ≠: {sol_not_eq}");
+        println!("| tau ≠: {tau_not_eq}");
+    }
+    if l_missing > 0 {
+        println!("left empty: {l_missing}");
+    }
+    if r_missing > 0 {
+        println!("right empty: {r_missing}");
+    }
+    if both_missing > 0 {
+        println!("both empty: {both_missing}");
+    }
+
     Ok(())
 }
 
@@ -224,6 +285,29 @@ fn compare_results(
     if left.eq(&right) {
         Ok(CompResult::Equal)
     } else {
-        Ok(CompResult::NotEqual(left, right, case))
+        // check that neither solution is a superset of the other
+        if either_set_rel(&left.minp, &right.minp)
+            && either_set_rel(&left.maxp, &right.maxp)
+        {
+            // the algorithms agree on the solutions,
+            // so it's just the tau calculation that's wrong
+            Ok(CompResult::TauNotEqual(left, right, case))
+        } else {
+            Ok(CompResult::SolNotEqual(left, right, case))
+        }
     }
+}
+
+fn either_set_rel(a: &[(String, String)], b: &[(String, String)]) -> bool {
+    superset_rel(a, b) || superset_rel(b, a)
+}
+
+/// is the left slice a superset of the right?
+fn superset_rel(left: &[(String, String)], right: &[(String, String)]) -> bool {
+    for el in right {
+        if !left.contains(el) {
+            return false;
+        }
+    }
+    true
 }

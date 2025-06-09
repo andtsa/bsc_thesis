@@ -9,7 +9,9 @@ use indicatif::ProgressStyle;
 pub mod def;
 pub mod tau_h;
 
-pub const PRECISION: f64 = 1e-5f64;
+pub const PRECISION: f64 = 1e-6f64;
+pub const CHUNK_SIZE: usize = 1024;
+
 
 #[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
 pub struct RankingsCsvRow {

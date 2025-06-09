@@ -10,6 +10,7 @@ use csv::StringRecord;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
 use lib::AlgoOut;
+use lib::CHUNK_SIZE;
 use lib::RankingsCsvRow;
 use lib::def::Element;
 use lib::def::Ranking;
@@ -32,10 +33,14 @@ pub struct Cli {
 
 #[derive(Debug, Clone, serde_derive::Deserialize, serde_derive::Serialize, PartialEq)]
 pub struct OutCsvRow {
-    // pub ta: f64, // todo: convert tb to ta by multiplication.
+    // pub ta: f64, // todo: convert tb to ta by multiplication. // <- stupid, ta=tb
     pub t_b: f64,
     pub t_max: f64,
     pub t_min: f64,
+    pub length: usize,
+    // pub frac_ties_x: f64,
+    // pub frac_ties_y: f64,
+    pub frac_ties: f64,
     pub sum_of_tie_lengths: usize,
     pub tie_count: usize,
     pub longest_tie: usize,
@@ -55,14 +60,22 @@ fn main() -> Result<()> {
         .par_iter()
         .map(parse_row)
         .collect::<Result<Vec<RankingsCsvRow>>>()?;
-    cases.dedup();
+    cases.dedup_by(|r1, r2| {
+        let mut map = BTreeMap::new();
+        let p1 = partial_from_string(&r1.a, &mut map).unwrap();
+        let p2 = partial_from_string(&r1.b, &mut map).unwrap();
+        let mut map = BTreeMap::new();
+        let p3 = partial_from_string(&r2.a, &mut map).unwrap();
+        let p4 = partial_from_string(&r2.b, &mut map).unwrap();
+        p1.rank_eq(&p3) && p2.rank_eq(&p4)
+    });
     cases.sort_by_key(|row| row.a.len());
 
     let num_tests = cases.len();
 
     let pb = progress_bar(num_tests as u64)?;
 
-    cases.chunks(1000).try_for_each(|group| {
+    cases.chunks(CHUNK_SIZE).try_for_each(|group| {
         let outputs = group
             .into_par_iter()
             .map(|c| run_solver_on(&args.solver, &c).map(|x| (x, c)))
@@ -94,17 +107,28 @@ fn map_to_out(xc: (AlgoOut, &RankingsCsvRow)) -> Result<OutCsvRow> {
     let rank_b = partial_from_string(&xc.1.b, &mut inp_map)?;
 
     let t = rank_a.tau(&rank_b)?;
+    let tie_count = rank_a
+        .iter()
+        .chain(rank_b.iter())
+        .map(|x| x.len())
+        .filter(|x| x > &1)
+        .count();
+    let items_in_ties: usize = rank_a
+        .iter()
+        .chain(rank_b.iter())
+        .map(|x| x.len())
+        .filter(|x| x > &1)
+        .sum();
+    
+    let length = rank_a.set_size();
 
     Ok(OutCsvRow {
         t_b: t,
         t_max: xc.0.tmax.unwrap(),
         t_min: xc.0.tmin.unwrap(),
-        tie_count: rank_a
-            .iter()
-            .chain(rank_b.iter())
-            .map(|x| x.len())
-            .filter(|x| x > &1)
-            .count(),
+        length,
+        frac_ties: items_in_ties as f64 / (2.0 * length as f64),
+        tie_count,
         longest_tie: rank_a
             .iter()
             .chain(rank_b.iter())
