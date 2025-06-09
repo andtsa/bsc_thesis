@@ -44,7 +44,15 @@ where
         println!("{rank_b:?}");
     }
 
-    let bounds = algo(&rank_a, &rank_b)?;
+    let bounds = match algo(&rank_a, &rank_b) {
+        Ok(sol) => sol,
+        Err(e) => if format!("{e}").contains("skipped") {
+            println!("skipped: {e}");
+            return Ok(());
+        } else {
+            return Err(e);
+        }
+    };
 
     println!("{}", bounds.print_with_repl(&inp_map)?);
 
