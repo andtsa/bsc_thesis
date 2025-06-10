@@ -28,16 +28,7 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     w: F,
 ) -> Result<Bound> {
     // checks
-    let rank_a_size = rank_a.set_size();
-    let rank_b_size = rank_b.set_size();
-    ensure!(
-        rank_a_size == rank_b_size,
-        "non-conjoint rankings: diff length"
-    );
-    ensure!(rank_a.set_eq(rank_b), "non-conjoint rankings: set neq");
-
-    // unambiguously equal length
-    let length = rank_a_size;
+    let (length, _item_set) = rank_a.ensure_conjoint(rank_b)?;
 
     ensure!(
         length >= 2,
@@ -47,7 +38,6 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
 
     let mut final_a = StrictOrder::new_empty(length);
     let mut final_b = StrictOrder::new_empty(length);
-    ensure!(final_a.set_size() == rank_b.set_size());
 
     // check if ties exist to exit early
     if rank_a.len() == length && rank_b.len() == length {

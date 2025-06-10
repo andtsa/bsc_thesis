@@ -8,11 +8,14 @@ use lib::def::PartialOrder;
 use lib::def::Ranking;
 use lib::def::StrictOrder;
 use lib::def::TauBounds;
-use lib::tau_h::hyperbolic_addtv_weight;
 
-pub fn find_tau_bounds(rank_a: &PartialOrder, rank_b: &PartialOrder) -> Result<TauBounds> {
-    let lb = tau_bound(rank_a, rank_b, true, hyperbolic_addtv_weight)?;
-    let ub = tau_bound(rank_a, rank_b, false, hyperbolic_addtv_weight)?;
+pub fn find_tau_bounds<F: Fn((usize, usize), (usize, usize)) -> f64>(
+    rank_a: &PartialOrder,
+    rank_b: &PartialOrder,
+    w: F,
+) -> Result<TauBounds> {
+    let lb = tau_bound(rank_a, rank_b, true, &w)?;
+    let ub = tau_bound(rank_a, rank_b, false, &w)?;
     Ok(TauBounds {
         lb: Some(lb),
         ub: Some(ub),

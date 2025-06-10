@@ -14,11 +14,11 @@ use clap::Parser;
 use clap_derive::Parser;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
-use lib::def::partial_from_string;
-use lib::def::Ranking;
 use lib::AlgoOut;
 use lib::CHUNK_SIZE;
 use lib::RankingsCsvRow;
+use lib::def::Ranking;
+use lib::def::partial_from_string;
 use lib::display_cases;
 use lib::parse_row;
 use lib::progress_bar;
@@ -76,8 +76,7 @@ fn main() -> Result<()> {
         bail!("algo two not found: {}", args.algo_two.display());
     }
 
-    let rows = read_glob_csv(&args.data, vec!["a", "b"])?;
-
+    let rows = read_glob_csv(&args.data, vec![])?;
 
     let mut inputs = rows
         .par_iter()
@@ -92,9 +91,14 @@ fn main() -> Result<()> {
         let p4 = partial_from_string(&r2.b, &mut map).unwrap();
         p1.rank_eq(&p3) && p2.rank_eq(&p4)
     });
+    inputs.sort_unstable_by_key(|x| x.a.len() + x.b.len());
 
     let num_tests = inputs.len();
-    println!("parsed {} into {num_tests} lines of input in {}s", rows.len(), start.elapsed().as_secs_f32());
+    println!(
+        "parsed {} into {num_tests} lines of input in {}s",
+        rows.len(),
+        start.elapsed().as_secs_f32()
+    );
 
     let pb = progress_bar(num_tests as u64)?;
 
@@ -125,127 +129,146 @@ fn main() -> Result<()> {
 
     println!("running {num_tests} tests...");
 
-    inputs.chunks(CHUNK_SIZE).try_for_each(|group| {
-        let comp_results = group
-            .par_iter()
-            .map(|i| {
-                run_solver_on(&args.algo_one, &i)
-                    .map(|a| run_solver_on(&args.algo_two, &i).map(|b| (a, b, i)))
-            })
-            .progress_with(pb.clone())
-            .collect::<Result<Result<Vec<_>>>>()??
-            .par_iter()
-            .map(|(a, b, i)| {
-                parse_algo_sol(a.to_string()).map(|aa| {
-                    parse_algo_sol(b.to_string()).map(|bb| (aa, bb, (*i).clone()))
+    inputs
+        .chunks(CHUNK_SIZE)
+        .try_for_each(|group| {
+            let comp_results = group
+                .par_iter()
+                .map(|i| {
+                    run_solver_on(&args.algo_one, &i)
+                        .map(|a| run_solver_on(&args.algo_two, &i).map(|b| (a, b, i)))
                 })
-            })
-            .collect::<Result<Result<Vec<_>>>>()??
-            .into_par_iter()
-            .map(compare_results)
-            .collect::<Result<Vec<_>>>()?;
+                .progress_with(pb.clone())
+                .collect::<Result<Result<Vec<_>>>>()??
+                .par_iter()
+                .map(|(a, b, i)| {
+                    parse_algo_sol(a.to_string()).map(|aa| {
+                        parse_algo_sol(b.to_string()).map(|bb| (aa, bb, (*i).clone()))
+                    })
+                })
+                .collect::<Result<Result<Vec<_>>>>()??
+                .into_par_iter()
+                .map(compare_results)
+                .collect::<Result<Vec<_>>>()?;
 
-        comp_results
-            .into_iter()
-            .flat_map(|cr| match cr {
-                CompResult::Equal => {
-                    equals += 1;
-                    None
-                }
-                CompResult::LeftMissing(r, c) => {
-                    l_missing += 1;
-                    Some(CompOutRow {
-                        err_type: "left missing".into(),
-                        a: c.a,
-                        b: c.b,
-                        dtmin: 0.0,
-                        ltmin: 0.0,
-                        rtmin: r.tmin.unwrap_or(f64::NAN),
-                        dtmax: 0.0,
-                        ltmax: 0.0,
-                        rtmax: r.tmax.unwrap_or(f64::NAN),
-                        lpmin: "none".into(),
-                        rpmin: display_cases(&r.minp),
-                        lpmax: "none".into(),
-                        rpmax: display_cases(&r.maxp),
-                    })
-                }
-                CompResult::RightMissing(l, c) => {
-                    r_missing += 1;
-                    Some(CompOutRow {
-                        err_type: "right missing".into(),
-                        a: c.a,
-                        b: c.b,
-                        dtmin: 0.0,
-                        rtmin: 0.0,
-                        ltmin: l.tmin.unwrap_or(f64::NAN),
-                        dtmax: 0.0,
-                        rtmax: 0.0,
-                        ltmax: l.tmax.unwrap_or(f64::NAN),
-                        rpmin: "none".into(),
-                        lpmin: display_cases(&l.minp),
-                        rpmax: "none".into(),
-                        lpmax: display_cases(&l.maxp),
-                    })
-                }
-                CompResult::TauNotEqual(l, r, c) => {
-                    tau_not_eq += 1;
-                    Some(CompOutRow {
-                        err_type: "bounds not equal".into(),
-                        a: c.a,
-                        b: c.b,
-                        dtmin: l.tmin.unwrap_or(f64::NAN).sub(r.tmin.unwrap_or(f64::NAN)).abs(),
-                        ltmin: l.tmin.unwrap_or(f64::NAN),
-                        rtmin: r.tmin.unwrap_or(f64::NAN),
-                        dtmax: l.tmax.unwrap_or(f64::NAN).sub(r.tmax.unwrap_or(f64::NAN)).abs(),
-                        ltmax: l.tmax.unwrap_or(f64::NAN),
-                        rtmax: r.tmax.unwrap_or(f64::NAN),
-                        lpmin: display_cases(&l.minp),
-                        rpmin: display_cases(&r.minp),
-                        lpmax: display_cases(&l.maxp),
-                        rpmax: display_cases(&r.maxp),
-                    })
-                }
-                CompResult::SolNotEqual(l, r, c) => {
-                    sol_not_eq += 1;
-                    Some(CompOutRow {
-                        err_type: "rankings not equal".into(),
-                        a: c.a,
-                        b: c.b,
-                        dtmin: l.tmin.unwrap_or(f64::NAN).sub(r.tmin.unwrap_or(f64::NAN)).abs(),
-                        ltmin: l.tmin.unwrap_or(f64::NAN),
-                        rtmin: r.tmin.unwrap_or(f64::NAN),
-                        dtmax: l.tmax.unwrap_or(f64::NAN).sub(r.tmax.unwrap_or(f64::NAN)).abs(),
-                        ltmax: l.tmax.unwrap_or(f64::NAN),
-                        rtmax: r.tmax.unwrap_or(f64::NAN),
-                        lpmin: display_cases(&l.minp),
-                        rpmin: display_cases(&r.minp),
-                        lpmax: display_cases(&l.maxp),
-                        rpmax: display_cases(&r.maxp),
-                    })
-                }
-                CompResult::BothMissing(c) => {
-                    both_missing += 1;
-                    Some(CompOutRow {
-                        err_type: "missing both".into(),
-                        a: c.a,
-                        b: c.b,
-                        dtmax: 0.0,
-                        dtmin: 0.0, 
-                        ltmin: 0.0,
-                        rtmin: 0.0,
-                        ltmax: 0.0,
-                        rtmax: 0.0,
-                        lpmin: "none".into(),
-                        rpmin: "none".into(),
-                        lpmax: "none".into(),
-                        rpmax: "none".into(),
-                    })
-                }
-            })
-            .try_for_each(|o| writer.serialize(o))
-            .map_err(|e| anyhow!("writer err: {e:?}"))
-    }).unwrap();
+            comp_results
+                .into_iter()
+                .flat_map(|cr| match cr {
+                    CompResult::Equal => {
+                        equals += 1;
+                        None
+                    }
+                    CompResult::LeftMissing(r, c) => {
+                        l_missing += 1;
+                        Some(CompOutRow {
+                            err_type: "left missing".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmin: 0.0,
+                            ltmin: 0.0,
+                            rtmin: r.tmin.unwrap_or(f64::NAN),
+                            dtmax: 0.0,
+                            ltmax: 0.0,
+                            rtmax: r.tmax.unwrap_or(f64::NAN),
+                            lpmin: "none".into(),
+                            rpmin: display_cases(&r.minp),
+                            lpmax: "none".into(),
+                            rpmax: display_cases(&r.maxp),
+                        })
+                    }
+                    CompResult::RightMissing(l, c) => {
+                        r_missing += 1;
+                        Some(CompOutRow {
+                            err_type: "right missing".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmin: 0.0,
+                            rtmin: 0.0,
+                            ltmin: l.tmin.unwrap_or(f64::NAN),
+                            dtmax: 0.0,
+                            rtmax: 0.0,
+                            ltmax: l.tmax.unwrap_or(f64::NAN),
+                            rpmin: "none".into(),
+                            lpmin: display_cases(&l.minp),
+                            rpmax: "none".into(),
+                            lpmax: display_cases(&l.maxp),
+                        })
+                    }
+                    CompResult::TauNotEqual(l, r, c) => {
+                        tau_not_eq += 1;
+                        Some(CompOutRow {
+                            err_type: "bounds not equal".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmin: l
+                                .tmin
+                                .unwrap_or(f64::NAN)
+                                .sub(r.tmin.unwrap_or(f64::NAN))
+                                .abs(),
+                            ltmin: l.tmin.unwrap_or(f64::NAN),
+                            rtmin: r.tmin.unwrap_or(f64::NAN),
+                            dtmax: l
+                                .tmax
+                                .unwrap_or(f64::NAN)
+                                .sub(r.tmax.unwrap_or(f64::NAN))
+                                .abs(),
+                            ltmax: l.tmax.unwrap_or(f64::NAN),
+                            rtmax: r.tmax.unwrap_or(f64::NAN),
+                            lpmin: display_cases(&l.minp),
+                            rpmin: display_cases(&r.minp),
+                            lpmax: display_cases(&l.maxp),
+                            rpmax: display_cases(&r.maxp),
+                        })
+                    }
+                    CompResult::SolNotEqual(l, r, c) => {
+                        sol_not_eq += 1;
+                        Some(CompOutRow {
+                            err_type: "rankings not equal".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmin: l
+                                .tmin
+                                .unwrap_or(f64::NAN)
+                                .sub(r.tmin.unwrap_or(f64::NAN))
+                                .abs(),
+                            ltmin: l.tmin.unwrap_or(f64::NAN),
+                            rtmin: r.tmin.unwrap_or(f64::NAN),
+                            dtmax: l
+                                .tmax
+                                .unwrap_or(f64::NAN)
+                                .sub(r.tmax.unwrap_or(f64::NAN))
+                                .abs(),
+                            ltmax: l.tmax.unwrap_or(f64::NAN),
+                            rtmax: r.tmax.unwrap_or(f64::NAN),
+                            lpmin: display_cases(&l.minp),
+                            rpmin: display_cases(&r.minp),
+                            lpmax: display_cases(&l.maxp),
+                            rpmax: display_cases(&r.maxp),
+                        })
+                    }
+                    CompResult::BothMissing(c) => {
+                        both_missing += 1;
+                        Some(CompOutRow {
+                            err_type: "missing both".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmax: 0.0,
+                            dtmin: 0.0,
+                            ltmin: 0.0,
+                            rtmin: 0.0,
+                            ltmax: 0.0,
+                            rtmax: 0.0,
+                            lpmin: "none".into(),
+                            rpmin: "none".into(),
+                            lpmax: "none".into(),
+                            rpmax: "none".into(),
+                        })
+                    }
+                })
+                .try_for_each(|o| writer.serialize(o))
+                .map_err(|e| anyhow!("writer err: {e:?}"))
+        })
+        .unwrap();
 
     let not_eqs = tau_not_eq + sol_not_eq;
 
