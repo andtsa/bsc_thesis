@@ -8,6 +8,7 @@ use lib::def::Element;
 use lib::def::PartialOrder;
 use lib::def::TauBounds;
 use lib::def::partial_from_string;
+use lib::tau_h::ap_weight;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -18,7 +19,7 @@ pub struct Cli {
 
 pub fn compute<Algo>(algo: Algo) -> Result<()>
 where
-    Algo: Fn(&PartialOrder, &PartialOrder) -> Result<TauBounds>,
+    Algo: Fn(&PartialOrder, &PartialOrder, fn((usize, usize), (usize, usize)) -> f64) -> Result<TauBounds>,
 {
     let args = Cli::parse();
 
@@ -44,13 +45,17 @@ where
         println!("{rank_b:?}");
     }
 
-    let bounds = match algo(&rank_a, &rank_b) {
+    let w = ap_weight;
+
+    let bounds = match algo(&rank_a, &rank_b, w) {
         Ok(sol) => sol,
-        Err(e) => if format!("{e}").contains("skipped") {
-            println!("skipped: {e}");
-            return Ok(());
-        } else {
-            return Err(e);
+        Err(e) => {
+            if format!("{e}").contains("skipped") {
+                println!("skipped: {e}");
+                return Ok(());
+            } else {
+                return Err(e);
+            }
         }
     };
 

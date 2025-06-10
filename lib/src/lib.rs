@@ -1,17 +1,17 @@
 use anyhow::Result;
 use anyhow::bail;
-use csv::Reader;
+use csv::ReaderBuilder;
 use csv::StringRecord;
 use glob::glob;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use itertools::Itertools;
 
 pub mod def;
 pub mod tau_h;
 
 pub const PRECISION: f64 = 1e-6f64;
 pub const CHUNK_SIZE: usize = 1024;
-
 
 #[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
 pub struct RankingsCsvRow {
@@ -46,11 +46,16 @@ pub fn read_glob_csv(g: &str, header: Vec<&str>) -> Result<Vec<StringRecord>> {
     let mut rows = vec![];
 
     for src in glob(g)? {
-        let mut csv_read = Reader::from_path(&src?)?;
+        let path = src?;
+        let mut csv_read = ReaderBuilder::new().has_headers(true).from_path(&path)?;
 
         // check header
         if !header.is_empty() && csv_read.headers()? != header {
-            bail!("Incompatible CSV data: expected header of `a,b,tmin,tmax,pmin,pmax`");
+            bail!(
+                "Incompatible CSV data ({}): expected header {header:?}, got {:?}",
+                path.display(),
+                csv_read.headers()?.iter().collect_vec()
+            );
         }
 
         // iterate over data
@@ -58,6 +63,7 @@ pub fn read_glob_csv(g: &str, header: Vec<&str>) -> Result<Vec<StringRecord>> {
     }
 
     rows.dedup();
+
     Ok(rows)
 }
 

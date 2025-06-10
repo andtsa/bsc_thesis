@@ -55,7 +55,9 @@ impl Ranking for StrictOrder {
         for b in other {
             ensure!(
                 b.is_some_and(|bb| item_set.contains(&bb)),
-                "conjointness failed!"
+                "conjointness failed!\na=[{}]\nb=[{}]",
+                total_to_string(self),
+                total_to_string(other),
             );
         }
         Ok((item_set.len(), item_set))
@@ -140,7 +142,10 @@ impl Ranking for StrictOrder {
 }
 
 fn sort_eq(a: &[Element], b: &[Element]) -> bool {
-    a.iter().sorted().zip(b.iter().sorted()).all(|(x,y)| x.eq(y))
+    a.iter()
+        .sorted()
+        .zip(b.iter().sorted())
+        .all(|(x, y)| x.eq(y))
 }
 
 impl Ranking for PartialOrder {
@@ -153,11 +158,7 @@ impl Ranking for PartialOrder {
     }
 
     fn rank_eq(&self, other: &Self) -> bool {
-        self.iter()
-            .zip(other)
-            .all(|(tga, tgb)| 
-                sort_eq(tga, tgb)
-            )
+        self.iter().zip(other).all(|(tga, tgb)| sort_eq(tga, tgb))
     }
 
     fn is_defined(&self) -> bool {
@@ -192,7 +193,12 @@ impl Ranking for PartialOrder {
         }
         for tg in other {
             for b in tg {
-                ensure!(item_set.contains(b), "conjointness failed!");
+                ensure!(
+                    item_set.contains(b),
+                    "conjointness failed!\na=[{}]\nb=[{}]",
+                    partial_to_string(self),
+                    partial_to_string(other)
+                );
             }
         }
         Ok((item_set.len(), item_set))

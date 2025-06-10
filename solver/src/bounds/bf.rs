@@ -43,7 +43,7 @@ pub fn tau_bounds_bf<F: Fn(&StrictOrder, &StrictOrder) -> Result<f64>>(
     let na = a.linear_ext_count();
     let nb = b.linear_ext_count();
     let le_count = na.saturating_mul(nb);
-    if le_count > 5_000_000 {
+    if le_count > 100_000 {
         bail!("skipped: too many linear extensions ({le_count})");
     }
 

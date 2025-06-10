@@ -27,8 +27,8 @@ use verifier::verify::parse_algo_sol;
 #[command(version)]
 pub struct Cli {
     pub solver: PathBuf,
-    pub data: String,
     pub output: PathBuf,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, serde_derive::Deserialize, serde_derive::Serialize, PartialEq)]
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         let p4 = partial_from_string(&r2.b, &mut map).unwrap();
         p1.rank_eq(&p3) && p2.rank_eq(&p4)
     });
-    cases.sort_by_key(|row| row.a.len());
+    cases.sort_unstable_by_key(|row| row.a.len());
 
     let num_tests = cases.len();
 
@@ -119,7 +119,7 @@ fn map_to_out(xc: (AlgoOut, &RankingsCsvRow)) -> Result<OutCsvRow> {
         .map(|x| x.len())
         .filter(|x| x > &1)
         .sum();
-    
+
     let length = rank_a.set_size();
 
     Ok(OutCsvRow {
