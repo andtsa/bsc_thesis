@@ -6,10 +6,10 @@ use anyhow::Result;
 use anyhow::ensure;
 use itertools::Itertools;
 use lib::def::*;
-use lib::tau_h::RankIndexMap;
-use lib::tau_h::TauVariants;
-use lib::tau_h::index_map;
-use lib::tau_h::tau_h;
+use lib::tau_w::RankIndexMap;
+use lib::tau_w::TauVariants;
+use lib::tau_w::index_map;
+use lib::tau_w::tau_w;
 use petgraph::acyclic::Acyclic;
 use petgraph::data::DataMap;
 use petgraph::graph::DiGraph;
@@ -27,6 +27,17 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     is_minimising: bool,
     w: F,
 ) -> Result<Bound> {
+    #[cfg(debug_assertions)]
+    println!(
+        "{} {}/{}",
+        if is_minimising {
+            "minimising"
+        } else {
+            "maximising"
+        },
+        partial_to_string(rank_a),
+        partial_to_string(rank_b)
+    );
     // checks
     let (length, _item_set) = rank_a.ensure_conjoint(rank_b)?;
 
@@ -129,13 +140,30 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
             match gfa.try_add_edge(*other_scidx, *other_dsidx, (scid, dsid)) {
                 Ok(_a) => {
                     #[cfg(debug_assertions)]
-                    println!("inserted in gfa ({scid},{dsid})[{_a:?}]");
+                    println!("inserted (concordant) in gfa ({scid},{dsid})[{_a:?}]");
                 }
                 Err(_e) => {
                     #[cfg(debug_assertions)]
-                    println!("failed ({scid},{dsid})->gfa: {_e:?}");
+                    println!("failed (concordant) ({scid},{dsid})->gfa: {_e:?}");
                 }
             }
+        } else if ga.contains_edge(nla[&dsid], nla[&scid]){
+            // we couldn't add the edge x->y above, but we still need an edge connecting x and y.
+            // this means we must have y->x, which is discordant.
+            let other_scidx = nlfa.get(&dsid).expect("indices changed unexpectedly"); // the indices ought to stay the same between the two graphs
+            let other_dsidx = nlfa.get(&scid).expect("indices changed unexpectedly");
+            match gfa.try_add_edge(*other_scidx, *other_dsidx, (scid, dsid)) {
+                Ok(_a) => {
+                    #[cfg(debug_assertions)]
+                    println!("inserted (discordant) in gfa ({scid},{dsid})[{_a:?}]");
+                }
+                Err(_e) => {
+                    #[cfg(debug_assertions)]
+                    println!("failed (discordant) ({scid},{dsid})->gfa: {_e:?}");
+                }
+            }
+        } else {
+            unreachable!("ga contains neither {scid}->{dsid} nor {dsid}->{scid}");
         }
     }
 
@@ -172,14 +200,32 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
             match gfb.try_add_edge(*other_scidx, *other_dsidx, (scid, dsid)) {
                 Ok(_a) => {
                     #[cfg(debug_assertions)]
-                    println!("inserted in gfb ({scid},{dsid})[{_a:?}]");
+                    println!("inserted (concordant) in gfb ({scid},{dsid})[{_a:?}]");
                 }
                 Err(_e) => {
                     #[cfg(debug_assertions)]
-                    println!("failed ({scid},{dsid})->gfb: {_e:?}");
+                    println!("failed (concordant) ({scid},{dsid})->gfb: {_e:?}");
                 }
             }
+        } else if gb.contains_edge(nlb[&dsid], nlb[&scid]){
+            // we couldn't add the edge x->y above, but we still need an edge connecting x and y.
+            // this means we must have y->x, which is discordant.
+            let other_scidx = nlfb.get(&dsid).expect("indices changed unexpectedly"); // the indices ought to stay the same between the two graphs
+            let other_dsidx = nlfb.get(&scid).expect("indices changed unexpectedly");
+            match gfb.try_add_edge(*other_scidx, *other_dsidx, (scid, dsid)) {
+                Ok(_a) => {
+                    #[cfg(debug_assertions)]
+                    println!("inserted (discordant) in gfb ({scid},{dsid})[{_a:?}]");
+                }
+                Err(_e) => {
+                    #[cfg(debug_assertions)]
+                    println!("failed (discordant) ({scid},{dsid})->gfb: {_e:?}");
+                }
+            }
+        } else {
+            unreachable!("gb contains neither {scid}->{dsid} nor {dsid}->{scid}");
         }
+
     }
 
     // construct the list-represented [`TotalOrder`]s from their graph
@@ -188,7 +234,7 @@ pub fn tau_bound<F: Fn((usize, usize), (usize, usize)) -> f64>(
     let final_b = thm_acy_tnm_sto(rank_b, &gfb, &nlfb, length);
 
     // let t = final_a.tau(&final_b)?;
-    let t = tau_h(&final_a, &final_b, w, TauVariants::A)?;
+    let t = tau_w(&final_a, &final_b, w, TauVariants::A)?;
     Ok(Bound {
         a: vec![final_a], // we only construct 1 solution!
         b: vec![final_b], /* there are often multiple optimal solutions, but we can't

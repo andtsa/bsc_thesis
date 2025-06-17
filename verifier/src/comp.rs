@@ -267,6 +267,7 @@ fn main() -> Result<()> {
                 })
                 .try_for_each(|o| writer.serialize(o))
                 .map_err(|e| anyhow!("writer err: {e:?}"))
+                .and_then(|_| writer.flush().map_err(|e| anyhow!("couldn't flush: {e:?}")))
         })
         .unwrap();
 

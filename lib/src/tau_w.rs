@@ -14,45 +14,19 @@ pub enum TauVariants {
     W,
 }
 
-pub fn unweighted(_: (usize, usize), _: (usize, usize)) -> f64 {
-    1.0
-}
-
-/// an additive hyperbolic weighting function, as described in Vigna 2014.
-/// it uses the left ranking X as the reference.
-pub fn hyperbolic_addtv_weight(x: (usize, usize), y: (usize, usize)) -> f64 {
-    (1.0 / (x.0 as f64 + 1.0)) + (1.0 / (y.0 as f64 + 1.0))
-}
-
-/// a multiplicative hyperbolic weighting function, as described in Vigna 2014.
-/// it uses the left ranking X as the reference.
-pub fn hyperbolic_mult_weight(x: (usize, usize), y: (usize, usize)) -> f64 {
-    (1.0 / (x.0 as f64 + 1.0)) * (1.0 / (y.0 as f64 + 1.0))
-}
-
-/// a weighting function to achieve tau_AP from Yilmaz 2008.
-/// assymetric, uses X as reference.
-pub fn ap_weight(x: (usize, usize), y: (usize, usize)) -> f64 {
-    1.0 / (x.0.max(y.0) as f64)
-}
-
-pub fn tau_unweighted(a: &StrictOrder, b: &StrictOrder) -> Result<f64> {
-    tau_h(a, b, unweighted, TauVariants::A)
-}
-
 /// compute kendall's tau under weight function w
 ///
 /// runs in O(n^2)
 ///
 /// example:
 /// ```
-/// # use lib::tau_h::tau_h;
+/// # use lib::tau_w::tau_w;
 /// let A = vec![Some('a'), Some('b'), Some('c'), Some('d')];
 /// let B = vec![Some('a'), Some('b'), Some('c'), Some('d')];
 /// let w = |i,j| 1.0 / ((i + j + 1) as f64);
-/// assert_eq!(tau_h(&A, &B, w, lib::tau_h::TauVariants::A).unwrap(), 1.0);
+/// assert_eq!(tau_w(&A, &B, w, lib::tau_w::TauVariants::A).unwrap(), 1.0);
 /// ```
-pub fn tau_h<F: Fn((usize, usize), (usize, usize)) -> f64>(
+pub fn tau_w<F: Fn((usize, usize), (usize, usize)) -> f64>(
     a: &StrictOrder,
     b: &StrictOrder,
     w: F,
@@ -141,4 +115,52 @@ pub fn index_map(rank_a: &PartialOrder, rank_b: &PartialOrder) -> RankIndexMap {
     }
 
     map
+}
+
+pub fn tau_partial<F: Fn((usize, usize), (usize, usize)) -> f64>(
+    a: &PartialOrder,
+    b: &PartialOrder,
+    w: F,
+    variant: TauVariants,
+) -> Result<f64> {
+    let map = index_map(a, b);
+    let items = map.keys().sorted().cloned().collect_vec();
+
+    let mut concordance = 0.0;
+    let mut total_weight = 0.0;
+    let mut ties_a = 0.0;
+    let mut ties_b = 0.0;
+    let mut ties_both = 0.0;
+
+    for (i, x) in items.iter().enumerate() {
+        for y in items.iter().skip(i + 1) {
+            let (xa, xb) = *map.get(x).unwrap();
+            let (ya, yb) = *map.get(y).unwrap();
+            let weight = w((xa, xb), (ya, yb));
+
+            let sa = sign(xa, ya);
+            let sb = sign(xb, yb);
+
+            match (sa, sb) {
+                (0.0, 0.0) => ties_both += weight,
+                (0.0, _) => ties_a += weight,
+                (_, 0.0) => ties_b += weight,
+                _ => concordance += weight * sa * sb,
+            }
+            total_weight += weight;
+        }
+    }
+
+    let denom = match variant {
+        TauVariants::A => total_weight,
+        TauVariants::B => {
+            let sum_cd = total_weight - (ties_a + ties_b + ties_both); // = C+D
+            let denom_a = sum_cd + ties_a;
+            let denom_b = sum_cd + ties_b;
+            (denom_a * denom_b).sqrt()
+        }
+        TauVariants::W => unimplemented!(), // waiting on Gazeel 2025
+    };
+
+    Ok(concordance / denom)
 }

@@ -1,7 +1,9 @@
 //! calculation of $\tau_{min}, \tau_{max}$
 use anyhow::Result;
+use cli::compute;
 use solver::bounds::find_tau_bounds;
-use solver::cli::compute;
+
+mod cli;
 
 fn main() -> Result<()> {
     compute(find_tau_bounds)

@@ -106,39 +106,6 @@ impl Ranking for StrictOrder {
     fn linear_ext_count(&self) -> u128 {
         1
     }
-
-    fn tau(&self, other: &Self) -> Result<f64> {
-        assert!(self.is_defined());
-        assert!(other.is_defined());
-        // collect items in the order they appear in `self`
-        let items: Vec<Element> = self.iter().map(|opt| opt.unwrap()).collect();
-        let n = items.len();
-        let mut rank_in_self: BTreeMap<Element, usize> = BTreeMap::new();
-
-        // 1. map element -> position in `self`
-        for (pos, &opt_e) in self.iter().enumerate() {
-            let e = opt_e.unwrap(); // asserted `is_defined()`
-            rank_in_self.insert(e, pos);
-        }
-
-        // 2. map element -> position in `other`
-        let mut rank_in_other: BTreeMap<Element, usize> = BTreeMap::new();
-        for (pos, &opt_e) in other.iter().enumerate() {
-            let e = opt_e.unwrap();
-            rank_in_other.insert(e, pos);
-        }
-
-        let mut vec_x = Vec::with_capacity(n);
-        let mut vec_y = Vec::with_capacity(n);
-        for &e in &items {
-            // `items` enumerates each element exactly once, in the order of `self`.
-            vec_x.push(*rank_in_self.get(&e).unwrap());
-            vec_y.push(*rank_in_other.get(&e).unwrap());
-        }
-
-        let (t, _sig) = kendalls::tau_b(&vec_x, &vec_y)?;
-        Ok(t)
-    }
 }
 
 fn sort_eq(a: &[Element], b: &[Element]) -> bool {
@@ -267,25 +234,6 @@ impl Ranking for PartialOrder {
             .map(|x| (1..=(x.len() as u128)).fold(1, mul))
             .fold(1, mul)
     }
-
-    fn tau(&self, other: &Self) -> Result<f64> {
-        assert!(self.is_defined());
-        let m = self
-            .iter()
-            .flatten()
-            .enumerate()
-            .map(|(a, b)| (*b, a))
-            .collect::<BTreeMap<Element, usize>>();
-        let flatten_ranking = |r: &Self| {
-            r.iter()
-                .flatten()
-                .map(|e| *m.get(e).expect("???"))
-                .collect::<Vec<_>>()
-        };
-
-        let (t, _sig) = kendalls::tau_b(&flatten_ranking(self), &flatten_ranking(other))?;
-        Ok(t)
-    }
 }
 
 pub fn partial_from_string(
@@ -389,6 +337,13 @@ pub fn partial_to_repl_string(
         .join(" ")
 }
 
+pub fn strict_from_partial(p: &PartialOrder) -> Result<StrictOrder> {
+    if !p.is_defined() {
+        bail!("{} is not a strict order", partial_to_string(p))
+    }
+    Ok(p.iter().map(|x| Some(x[0])).collect_vec())
+}
+
 pub fn total_to_string(o: &StrictOrder) -> String {
     o.iter()
         .map(|x| x.map_or("<empty>".to_string(), |e| e.to_string()))
@@ -428,7 +383,6 @@ pub trait Ranking {
     fn insert_at(&mut self, e: Element, p: usize) -> Result<()>;
     fn fixed_indices(&self) -> Vec<usize>;
     fn linear_ext_count(&self) -> u128;
-    fn tau(&self, other: &Self) -> Result<f64>;
 }
 
 pub struct Bound {

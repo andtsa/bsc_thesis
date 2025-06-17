@@ -4,7 +4,7 @@ use anyhow::Result;
 use anyhow::bail;
 use itertools::Itertools;
 use lib::def::*;
-use lib::tau_h::tau_unweighted;
+use lib::weights::tau_unweighted;
 
 impl BruteForce for PartialOrder {
     fn completions(&self) -> Vec<StrictOrder> {
