@@ -8,10 +8,11 @@ use indicatif::ProgressStyle;
 use itertools::Itertools;
 
 pub mod def;
-pub mod tau_h;
+pub mod tau_w;
+pub mod weights;
 
 pub const PRECISION: f64 = 1e-6f64;
-pub const CHUNK_SIZE: usize = 1024;
+pub const CHUNK_SIZE: usize = 256;
 
 #[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
 pub struct RankingsCsvRow {

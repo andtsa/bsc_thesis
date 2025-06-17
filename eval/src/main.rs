@@ -9,6 +9,11 @@ use clap_derive::Parser;
 use csv::StringRecord;
 use csv::Writer;
 use indicatif::ParallelProgressIterator;
+use lib::def::strict_from_partial;
+use lib::tau_w::tau_partial;
+use lib::tau_w::tau_w;
+use lib::tau_w::TauVariants;
+use lib::weights::unweighted;
 use lib::AlgoOut;
 use lib::CHUNK_SIZE;
 use lib::RankingsCsvRow;
@@ -18,6 +23,7 @@ use lib::def::partial_from_string;
 use lib::progress_bar;
 use lib::read_glob_csv;
 use lib::run_solver_on;
+use lib::PRECISION;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -33,7 +39,7 @@ pub struct Cli {
 
 #[derive(Debug, Clone, serde_derive::Deserialize, serde_derive::Serialize, PartialEq)]
 pub struct OutCsvRow {
-    // pub ta: f64, // todo: convert tb to ta by multiplication. // <- stupid, ta=tb
+    pub t_a: f64, 
     pub t_b: f64,
     pub t_max: f64,
     pub t_min: f64,
@@ -72,10 +78,15 @@ fn main() -> Result<()> {
     cases.sort_unstable_by_key(|row| row.a.len());
 
     let num_tests = cases.len();
+    println!(
+        "parsed {} into {num_tests} lines of input in {}s",
+        rows.len(),
+        start.elapsed().as_secs_f32()
+    );
 
     let pb = progress_bar(num_tests as u64)?;
 
-    cases.chunks(CHUNK_SIZE).try_for_each(|group| {
+    cases.chunks(CHUNK_SIZE * 8).try_for_each(|group| {
         let outputs = group
             .into_par_iter()
             .map(|c| run_solver_on(&args.solver, &c).map(|x| (x, c)))
@@ -106,7 +117,28 @@ fn map_to_out(xc: (AlgoOut, &RankingsCsvRow)) -> Result<OutCsvRow> {
     let rank_a = partial_from_string(&xc.1.a, &mut inp_map)?;
     let rank_b = partial_from_string(&xc.1.b, &mut inp_map)?;
 
-    let t = rank_a.tau(&rank_b)?;
+    let mut sol_inp_map: BTreeMap<String, Element> = BTreeMap::new();
+    let sol_str_a = partial_from_string(&xc.0.maxp[0].0, &mut sol_inp_map)?;
+    let sol_str_b = partial_from_string(&xc.0.maxp[0].1, &mut sol_inp_map)?;
+    let p_max_a = strict_from_partial(&sol_str_a)?;
+    let p_max_b = strict_from_partial(&sol_str_b)?;
+
+    let mut sol_inp_map: BTreeMap<String, Element> = BTreeMap::new();
+    let sol_str_a = partial_from_string(&xc.0.minp[0].0, &mut sol_inp_map)?;
+    let sol_str_b = partial_from_string(&xc.0.minp[0].1, &mut sol_inp_map)?;
+    let p_min_a = strict_from_partial(&sol_str_a)?;
+    let p_min_b = strict_from_partial(&sol_str_b)?;
+
+    let t_a = tau_partial(&rank_a, &rank_b, unweighted, TauVariants::A)?;
+    let t_b = tau_partial(&rank_a, &rank_b, unweighted, TauVariants::B)?;
+
+    let t_max_a = tau_w(&p_max_a, &p_max_b, unweighted, TauVariants::A)?;
+    let t_max_b = tau_w(&p_max_a, &p_max_b, unweighted, TauVariants::B)?;
+    let t_min_a = tau_w(&p_min_a, &p_min_b, unweighted, TauVariants::A)?;
+    let t_min_b = tau_w(&p_min_a, &p_min_b, unweighted, TauVariants::B)?;
+    assert!(t_min_b - t_min_a < PRECISION);
+    assert!(t_max_b - t_max_a < PRECISION);
+
     let tie_count = rank_a
         .iter()
         .chain(rank_b.iter())
@@ -123,9 +155,10 @@ fn map_to_out(xc: (AlgoOut, &RankingsCsvRow)) -> Result<OutCsvRow> {
     let length = rank_a.set_size();
 
     Ok(OutCsvRow {
-        t_b: t,
-        t_max: xc.0.tmax.unwrap(),
-        t_min: xc.0.tmin.unwrap(),
+        t_a,
+        t_b,
+        t_max: t_max_a,
+        t_min: t_min_a,
         length,
         frac_ties: items_in_ties as f64 / (2.0 * length as f64),
         tie_count,
