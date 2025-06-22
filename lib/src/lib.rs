@@ -12,7 +12,7 @@ pub mod tau_w;
 pub mod weights;
 
 pub const PRECISION: f64 = 1e-6f64;
-pub const CHUNK_SIZE: usize = 256;
+pub const CHUNK_SIZE: usize = 512;
 
 #[derive(Debug, Clone, serde_derive::Deserialize, PartialEq, Eq)]
 pub struct RankingsCsvRow {
@@ -78,17 +78,21 @@ pub fn progress_bar(n: u64) -> Result<ProgressBar> {
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
+use std::time::Instant;
 
 pub trait Case {
     fn algo_args(&self) -> Vec<String>;
 }
 
-pub fn run_solver_on<C: Case>(algo: &PathBuf, inp: C) -> Result<String> {
+pub fn run_solver_on<C: Case>(algo: &PathBuf, inp: C) -> Result<(String, Duration)> {
     let mut cmd = Command::new(algo);
 
     for arg in inp.algo_args() {
         cmd.arg(arg);
     }
+
+    let start = Instant::now();
 
     let out = cmd.output()?;
 
@@ -100,7 +104,7 @@ pub fn run_solver_on<C: Case>(algo: &PathBuf, inp: C) -> Result<String> {
         )
     }
 
-    Ok(String::from_utf8(out.stdout)?)
+    Ok((String::from_utf8(out.stdout)?, start.elapsed()))
 }
 
 impl Case for &&RankingsCsvRow {

@@ -38,7 +38,11 @@ pub struct Cli {
 
 pub fn compute<Algo>(algo: Algo) -> Result<()>
 where
-    Algo: Fn(&PartialOrder, &PartialOrder, fn((usize, usize), (usize, usize)) -> f64) -> Result<TauBounds>,
+    Algo: Fn(
+        &PartialOrder,
+        &PartialOrder,
+        fn((usize, usize), (usize, usize)) -> f64,
+    ) -> Result<TauBounds>,
 {
     let args = Cli::parse();
 
@@ -65,7 +69,6 @@ where
     }
 
     // passes tests
-    let w = ap_weight;
     let w = unweighted;
     let w = const_weight_42;
     let w = ap_high_weight;
@@ -79,7 +82,6 @@ where
 
     // fails tests
     let w = hyperbolic_addtv_weight;
-    let w = hyperbolic_mult_weight;
     let w = weight_inv_right;
     let w = weight_left;
     let w = weight_right;
@@ -92,6 +94,8 @@ where
 
     // current test
     let w = unweighted;
+    let w = ap_weight;
+    let w = hyperbolic_mult_weight;
 
     let bounds = match algo(&rank_a, &rank_b, w) {
         Ok(sol) => sol,

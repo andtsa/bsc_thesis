@@ -44,7 +44,7 @@ enum CompResult {
     BothMissing(RankingsCsvRow),
     TauNotEqual(AlgoOut, AlgoOut, RankingsCsvRow),
     SolNotEqual(AlgoOut, AlgoOut, RankingsCsvRow),
-    Equal,
+    Equal(AlgoOut, AlgoOut, RankingsCsvRow),
 }
 
 #[derive(Debug, Clone, serde_derive::Serialize)]
@@ -142,8 +142,8 @@ fn main() -> Result<()> {
                 .collect::<Result<Result<Vec<_>>>>()??
                 .par_iter()
                 .map(|(a, b, i)| {
-                    parse_algo_sol(a.to_string()).map(|aa| {
-                        parse_algo_sol(b.to_string()).map(|bb| (aa, bb, (*i).clone()))
+                    parse_algo_sol(a.0.to_string()).map(|aa| {
+                        parse_algo_sol(b.0.to_string()).map(|bb| (aa, bb, (*i).clone()))
                     })
                 })
                 .collect::<Result<Result<Vec<_>>>>()??
@@ -154,9 +154,23 @@ fn main() -> Result<()> {
             comp_results
                 .into_iter()
                 .flat_map(|cr| match cr {
-                    CompResult::Equal => {
+                    CompResult::Equal(l, r, c) => {
                         equals += 1;
-                        None
+                        Some(CompOutRow {
+                            err_type: "none".into(),
+                            a: c.a,
+                            b: c.b,
+                            dtmin: 0.0,
+                            ltmin: l.tmin.unwrap_or(f64::NAN),
+                            rtmin: r.tmin.unwrap_or(f64::NAN),
+                            dtmax: 0.0,
+                            ltmax: l.tmax.unwrap_or(f64::NAN),
+                            rtmax: r.tmax.unwrap_or(f64::NAN),
+                            lpmin: display_cases(&l.minp),
+                            rpmin: display_cases(&r.minp),
+                            lpmax: display_cases(&l.maxp),
+                            rpmax: display_cases(&r.maxp),
+                        })
                     }
                     CompResult::LeftMissing(r, c) => {
                         l_missing += 1;
@@ -307,7 +321,7 @@ fn compare_results(
     };
 
     if left.eq(&right) {
-        Ok(CompResult::Equal)
+        Ok(CompResult::Equal(left, right, case))
     } else {
         // check that neither solution is a superset of the other
         if either_set_rel(&left.minp, &right.minp)
