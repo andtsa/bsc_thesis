@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
@@ -62,19 +64,21 @@ pub fn parse_algo_sol(output: String) -> Result<Option<AlgoOut>> {
     Ok(Some(algo_sol))
 }
 
-pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
-    let (output, input) = case?;
+pub fn verify_result(
+    case: Result<((String, Duration), TestCase)>,
+) -> Result<(TestResult, Duration)> {
+    let ((output, dt), input) = case?;
     let algo_sol = if let Some(x) = parse_algo_sol(output)? {
         x
     } else {
-        return Ok(TestResult::Skipped);
+        return Ok((TestResult::Skipped, dt));
     };
     // the algorithm can give just a min result, just a max result, or both.
     let min_sol_exists = algo_sol.tmin.is_some() && !algo_sol.minp.is_empty();
     let max_sol_exists = algo_sol.tmax.is_some() && !algo_sol.maxp.is_empty();
     // but not neither
     if !(min_sol_exists || max_sol_exists) {
-        return Ok(TestResult::Empty(input));
+        return Ok((TestResult::Empty(input), dt));
     }
 
     for (mina, minb) in &algo_sol.minp {
@@ -83,7 +87,7 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
             .iter()
             .any(|p| p.0.eq(mina) && p.1.eq(minb))
         {
-            return Ok(TestResult::Fail((input, algo_sol), FailType::MinP));
+            return Ok((TestResult::Fail((input, algo_sol), FailType::MinP), dt));
         }
     }
 
@@ -92,7 +96,10 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
         .is_some_and(|tmin| (tmin - input.tmin).abs() > PRECISION)
     {
         let (ta, ts) = (algo_sol.tmin.unwrap(), input.tmin);
-        return Ok(TestResult::Fail((input, algo_sol), FailType::Tmin(ta, ts)));
+        return Ok((
+            TestResult::Fail((input, algo_sol), FailType::Tmin(ta, ts)),
+            dt,
+        ));
     }
 
     for (maxa, maxb) in &algo_sol.maxp {
@@ -101,7 +108,7 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
             .iter()
             .any(|p| p.0.eq(maxa) && p.1.eq(maxb))
         {
-            return Ok(TestResult::Fail((input, algo_sol), FailType::MaxP));
+            return Ok((TestResult::Fail((input, algo_sol), FailType::MaxP), dt));
         }
     }
 
@@ -110,12 +117,15 @@ pub fn verify_result(case: Result<(String, TestCase)>) -> Result<TestResult> {
         .is_some_and(|tmax| (tmax - input.tmax).abs() > PRECISION)
     {
         let (ta, ts) = (algo_sol.tmax.unwrap(), input.tmax);
-        return Ok(TestResult::Fail((input, algo_sol), FailType::Tmax(ta, ts)));
+        return Ok((
+            TestResult::Fail((input, algo_sol), FailType::Tmax(ta, ts)),
+            dt,
+        ));
     }
 
     if min_sol_exists && max_sol_exists {
-        Ok(TestResult::Complete)
+        Ok((TestResult::Complete, dt))
     } else {
-        Ok(TestResult::Pass)
+        Ok((TestResult::Pass, dt))
     }
 }

@@ -30,7 +30,6 @@ pub fn tau_w<F: Fn((usize, usize), (usize, usize)) -> f64>(
     a: &StrictOrder,
     b: &StrictOrder,
     w: F,
-    variant: TauVariants,
 ) -> Result<f64> {
     let va = a.ensure_defined()?;
     let vb = b.ensure_defined()?;
@@ -60,13 +59,7 @@ pub fn tau_w<F: Fn((usize, usize), (usize, usize)) -> f64>(
         }
     }
 
-    let denom = match variant {
-        TauVariants::A => total_weight,
-        TauVariants::B => total_weight, // on strict orders A==B
-        TauVariants::W => unimplemented!(),
-    };
-
-    Ok(num / denom)
+    Ok(num / total_weight)
 }
 
 pub fn sign(a: usize, b: usize) -> f64 {
@@ -97,19 +90,21 @@ pub fn index_map(rank_a: &PartialOrder, rank_b: &PartialOrder) -> RankIndexMap {
     let mut map: BTreeMap<Element, (usize, usize)> = BTreeMap::new();
     let mut idxa = 0;
     for tga in rank_a {
+        let average_position = ((idxa + idxa + tga.len() - 1) / 2) + 1;
         for a in tga {
             map.entry(*a)
-                .and_modify(|e| (e).0 = idxa)
-                .or_insert((idxa, usize::MAX));
+                .and_modify(|e| (e).0 = average_position)
+                .or_insert((average_position, usize::MAX));
         }
         idxa += tga.len()
     }
     let mut idxb = 0;
     for tgb in rank_b {
+        let average_position = ((idxb + idxb + tgb.len() - 1) / 2) + 1;
         for b in tgb {
             map.entry(*b)
-                .and_modify(|e| (e).1 = idxb)
-                .or_insert((usize::MAX, idxb));
+                .and_modify(|e| (e).1 = average_position)
+                .or_insert((usize::MAX, average_position));
         }
         idxb += tgb.len()
     }
@@ -159,8 +154,9 @@ pub fn tau_partial<F: Fn((usize, usize), (usize, usize)) -> f64>(
             let denom_b = sum_cd + ties_b;
             (denom_a * denom_b).sqrt()
         }
-        TauVariants::W => unimplemented!(), // waiting on Gazeel 2025
+        TauVariants::W => unimplemented!(), // waiting on Gazeel (2025)
     };
 
+    println!("{concordance} / {denom}");
     Ok(concordance / denom)
 }

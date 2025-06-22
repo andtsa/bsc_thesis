@@ -338,7 +338,7 @@ pub fn partial_to_repl_string(
 }
 
 pub fn strict_from_partial(p: &PartialOrder) -> Result<StrictOrder> {
-    if !p.is_defined() {
+    if !p.iter().all(|x| x.len() == 1) {
         bail!("{} is not a strict order", partial_to_string(p))
     }
     Ok(p.iter().map(|x| Some(x[0])).collect_vec())

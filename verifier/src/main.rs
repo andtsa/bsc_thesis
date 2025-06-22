@@ -72,22 +72,22 @@ fn main() -> Result<()> {
 
     let successes = results
         .iter()
-        .filter(|x| matches!(x, TestResult::Pass | TestResult::Complete))
+        .filter(|x| matches!(x.0, TestResult::Pass | TestResult::Complete))
         .count();
 
     let completes = results
         .iter()
-        .filter(|x| matches!(x, TestResult::Complete))
+        .filter(|x| matches!(x.0, TestResult::Complete))
         .count();
 
     let skips = results
         .iter()
-        .filter(|x| matches!(x, TestResult::Skipped))
+        .filter(|x| matches!(x.0, TestResult::Skipped))
         .count();
 
     let failures = results
         .iter()
-        .filter_map(|x| match x {
+        .filter_map(|x| match &x.0 {
             TestResult::Pass | TestResult::Skipped | TestResult::Complete => None,
             TestResult::Fail(i, t) => Some((i, t)),
             TestResult::Empty(f) => {
