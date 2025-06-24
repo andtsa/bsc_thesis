@@ -11,6 +11,7 @@ use lib::tau_w::TauVariants;
 use lib::tau_w::tau_partial;
 use lib::tau_w::tau_w;
 use lib::weights::ap_weight;
+use lib::weights::unweighted;
 
 #[derive(Parser, Debug)]
 pub struct Cli {
@@ -30,6 +31,7 @@ fn main() -> Result<()> {
     let rank_a = partial_from_string(&args.a, &mut inp_map)?;
     let rank_b = partial_from_string(&args.b, &mut inp_map)?;
 
+    let weight = unweighted;
     let weight = ap_weight;
     let variant = TauVariants::B;
 

@@ -93,9 +93,9 @@ where
     let w = hyper_left_weight;
 
     // current test
-    let w = unweighted;
     let w = ap_weight;
     let w = hyperbolic_mult_weight;
+    let w = unweighted;
 
     let bounds = match algo(&rank_a, &rank_b, w) {
         Ok(sol) => sol,

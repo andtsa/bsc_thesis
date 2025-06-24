@@ -157,6 +157,9 @@ pub fn tau_partial<F: Fn((usize, usize), (usize, usize)) -> f64>(
         TauVariants::W => unimplemented!(), // waiting on Gazeel (2025)
     };
 
-    println!("{concordance} / {denom}");
+    #[cfg(debug_assertions)]
+    {
+        println!("{concordance} / {denom}");
+    }
     Ok(concordance / denom)
 }
