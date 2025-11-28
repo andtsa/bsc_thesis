@@ -27,7 +27,7 @@ by demonstrating the reliability of correlation in presence of uncertainty-induc
 
 
 ## Link to paper
-[https://repository.tudelft.nl](https://repository.tudelft.nl) (pending)
+[https://repository.tudelft.nl](https://repository.tudelft.nl/record/uuid:c02837e4-e809-48a0-91f8-a7ec6f389a25)
 
 # Source code organisation
 
